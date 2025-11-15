@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Dashboard from '@/components/Dashboard';
 import { useEffect, useState } from 'react';
 import { createTrip } from '@/lib/db';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { hapticLight, hapticMedium } from '@/lib/haptics';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -49,8 +50,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="h-full flex items-center justify-center bg-black">
+        <div className="text-white text-base">Loading...</div>
       </div>
     );
   }
@@ -61,64 +62,69 @@ export default function DashboardPage() {
 
   return (
     <>
-      {showStartTrip && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-          onClick={() => setShowStartTrip(false)}
-        >
+      <Dashboard
+        onStartNewTrip={handleStartNewTrip}
+        onEditTrip={handleEditTrip}
+      />
+      
+      {/* Start Trip Modal - Bottom Sheet */}
+      <AnimatePresence>
+        {showStartTrip && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/20 relative overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            onClick={() => { hapticLight(); setShowStartTrip(false); }}
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl" />
-            <div className="relative z-10">
-              <h2 className="text-3xl font-bold text-white mb-6">Start New Trip</h2>
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-300 mb-3">
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
+            >
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-white mb-5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
+                Start New Trip
+              </h2>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
                   Current Odometer
                 </label>
                 <input
                   type="number"
                   value={startMileage}
                   onChange={(e) => setStartMileage(e.target.value)}
-                  className="w-full px-4 py-4 bg-dark-700/50 border-2 border-dark-600 rounded-xl focus:border-blue-500 focus:outline-none text-lg text-white"
+                  className="w-full px-4 py-4 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
                   placeholder="Enter current mileage"
                   min="0"
+                  style={{ fontSize: '17px' }}
                 />
               </div>
               <div className="flex gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowStartTrip(false)}
-                  className="flex-1 glass hover:border-white/30 border border-white/10 text-gray-300 font-semibold py-3 rounded-xl transition-all"
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticLight(); setShowStartTrip(false); }}
+                  className="flex-1 glass rounded-xl text-white/90 font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 500 }}
                 >
                   Cancel
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleStartTrip}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 rounded-xl transition-all shadow-lg"
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticMedium(); handleStartTrip(); }}
+                  className="flex-1 glass rounded-xl text-white font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 600 }}
                 >
                   Start Trip
                 </motion.button>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-      <Dashboard
-        onStartNewTrip={handleStartNewTrip}
-        onEditTrip={handleEditTrip}
-      />
+        )}
+      </AnimatePresence>
     </>
   );
 }
-

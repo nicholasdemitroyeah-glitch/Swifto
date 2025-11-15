@@ -44,12 +44,10 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         getSettings(user.uid),
       ]);
       
-      // Recalculate pay to ensure it's always accurate
       if (tripData && settingsData) {
         const mileage = tripData.currentMileage - tripData.startMileage;
         const recalculatedPay = calculateTripPay(mileage, tripData.loads, settingsData);
         
-        // Update trip in database if pay is different
         if (Math.abs(tripData.totalPay - recalculatedPay) > 0.01) {
           await updateTrip(tripId, { totalPay: recalculatedPay });
           tripData.totalPay = recalculatedPay;
@@ -99,9 +97,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setNewStops('');
       setLoadType('dry');
       setShowAddLoad(false);
+      hapticSuccess();
     } catch (error) {
       console.error('Error adding load:', error);
       alert('Failed to add load. Please try again.');
+      hapticError();
     } finally {
       setUpdating(false);
     }
@@ -128,9 +128,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setTrip({ ...trip, currentMileage: mileage, totalPay });
       setNewMileage('');
       setShowUpdateMileage(false);
+      hapticSuccess();
     } catch (error) {
       console.error('Error updating mileage:', error);
       alert('Failed to update mileage. Please try again.');
+      hapticError();
     } finally {
       setUpdating(false);
     }
@@ -157,11 +159,13 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         finishedAt: Timestamp.now(),
       });
 
+      hapticSuccess();
       alert(`Trip completed! Final pay: ${formatCurrency(totalPay)}`);
       onFinishTrip();
     } catch (error) {
       console.error('Error finishing trip:', error);
       alert('Failed to finish trip. Please try again.');
+      hapticError();
     } finally {
       setUpdating(false);
     }
@@ -184,7 +188,6 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       const updatedLoads = trip.loads.map(load =>
         load.id === loadId ? { ...load, stops } : load
       );
-
       const mileage = trip.currentMileage - trip.startMileage;
       const totalPay = calculateTripPay(mileage, updatedLoads, settings);
 
@@ -196,9 +199,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setTrip({ ...trip, loads: updatedLoads, totalPay });
       setEditStops('');
       setShowEditLoad(null);
+      hapticSuccess();
     } catch (error) {
       console.error('Error editing load:', error);
       alert('Failed to edit load. Please try again.');
+      hapticError();
     } finally {
       setUpdating(false);
     }
@@ -206,7 +211,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
   const handleDeleteLoad = async (loadId: string) => {
     if (!trip || !settings) return;
-    if (!confirm('Are you sure you want to delete this load? This will also delete all stops in this load.')) return;
+    if (!confirm('Delete this load?')) return;
 
     setUpdating(true);
     try {
@@ -220,9 +225,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       });
 
       setTrip({ ...trip, loads: updatedLoads, totalPay });
+      hapticSuccess();
     } catch (error) {
       console.error('Error deleting load:', error);
       alert('Failed to delete load. Please try again.');
+      hapticError();
     } finally {
       setUpdating(false);
     }
@@ -230,7 +237,6 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
   const handleDeleteStop = async (loadId: string, stopId: string) => {
     if (!trip || !settings) return;
-    if (!confirm('Are you sure you want to delete this stop?')) return;
 
     setUpdating(true);
     try {
@@ -261,8 +267,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
   if (loading || !trip || !settings) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-white text-lg">Loading...</div>
+      <div className="h-full flex items-center justify-center bg-black">
+        <div className="text-white text-base">Loading...</div>
       </div>
     );
   }
@@ -270,144 +276,89 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const mileage = trip.currentMileage - trip.startMileage;
 
   return (
-    <div className="min-h-screen bg-black safe-top safe-bottom pb-24">
-      <div className="px-4 pt-4">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-6"
-        >
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => {
-              hapticLight();
-              router.push('/dashboard');
-            }}
-            className="glass rounded-xl px-4 py-2 text-white/90 active:opacity-70 flex items-center gap-2"
-            style={{ fontSize: '15px', fontWeight: 500 }}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </motion.button>
-          <h1 
-            className="text-2xl font-bold text-white tracking-tight"
-            style={{ 
-              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-              fontWeight: 700,
-              letterSpacing: '-0.02em'
-            }}
-          >
-            Trip Details
-          </h1>
-          <div className="w-20" />
-        </motion.div>
-
-        {/* Trip Info Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-3xl p-6 mb-4"
-        >
-          <div className="text-center mb-6">
-            <p className="text-white/60 text-sm font-medium mb-2">Total Pay</p>
-            <div 
-              className="text-4xl font-bold text-white mb-4"
-              style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                fontWeight: 700,
-                letterSpacing: '-0.03em'
-              }}
-            >
-              {formatCurrency(trip.totalPay)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="glass rounded-xl p-3">
-              <p className="text-white/60 text-xs mb-1">Start</p>
-              <p className="text-lg font-bold text-white">{trip.startMileage.toLocaleString()}</p>
-            </div>
-            <div className="glass rounded-xl p-3">
-              <p className="text-white/60 text-xs mb-1">Current</p>
-              <p className="text-lg font-bold text-white">{trip.currentMileage.toLocaleString()}</p>
-            </div>
-            <div className="glass rounded-xl p-3">
-              <p className="text-white/60 text-xs mb-1">Trip</p>
-              <p className="text-lg font-bold text-white">{mileage.toLocaleString()}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="glass rounded-xl p-3">
-              <p className="text-white/40 text-xs mb-1">Started</p>
-              <p className="text-xs font-medium text-white">
-                {trip.createdAt ? formatDateTime(trip.createdAt.toDate()) : 'N/A'}
-              </p>
-            </div>
-            {trip.isFinished && trip.finishedAt && (
-              <div className="glass rounded-xl p-3">
-                <p className="text-white/40 text-xs mb-1">Finished</p>
-                <p className="text-xs font-medium text-white">
-                  {formatDateTime(trip.finishedAt.toDate())}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3">
+    <div className="h-full flex flex-col bg-black">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 safe-top safe-left safe-right">
+        <div className="px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between mb-3">
             <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                hapticLight();
-                setNewMileage(trip.currentMileage.toString());
-                setShowUpdateMileage(true);
-              }}
-              className="flex-1 glass rounded-xl px-4 py-3 text-white font-medium active:opacity-70"
-              style={{ fontSize: '15px', fontWeight: 500 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => { hapticLight(); router.push('/dashboard'); }}
+              className="glass rounded-xl px-3 py-2 text-white/90 active:opacity-70 flex items-center gap-1.5"
+              style={{ fontSize: '14px', fontWeight: 500 }}
             >
-              Update Mileage
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
             </motion.button>
-            {!trip.isFinished && (
+            <h1 className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700, letterSpacing: '-0.02em' }}>
+              Trip Details
+            </h1>
+            <div className="w-16" />
+          </div>
+
+          {/* Trip Info Card - Compact */}
+          <div className="glass rounded-2xl p-4 mb-3">
+            <div className="text-center mb-4">
+              <p className="text-white/60 text-xs font-medium mb-1">Total Pay</p>
+              <div className="text-3xl font-bold text-white" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700, letterSpacing: '-0.03em' }}>
+                {formatCurrency(trip.totalPay)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="glass rounded-xl p-2.5">
+                <p className="text-white/60 text-xs mb-0.5">Start</p>
+                <p className="text-base font-bold text-white">{trip.startMileage.toLocaleString()}</p>
+              </div>
+              <div className="glass rounded-xl p-2.5">
+                <p className="text-white/60 text-xs mb-0.5">Current</p>
+                <p className="text-base font-bold text-white">{trip.currentMileage.toLocaleString()}</p>
+              </div>
+              <div className="glass rounded-xl p-2.5">
+                <p className="text-white/60 text-xs mb-0.5">Trip</p>
+                <p className="text-base font-bold text-white">{mileage.toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  hapticMedium();
-                  setNewMileage(trip.currentMileage.toString());
-                  setShowFinishTrip(true);
-                }}
-                className="flex-1 glass rounded-xl px-4 py-3 text-white font-medium active:opacity-70"
-                style={{ fontSize: '15px', fontWeight: 500 }}
+                onClick={() => { hapticLight(); setNewMileage(trip.currentMileage.toString()); setShowUpdateMileage(true); }}
+                className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm font-medium active:opacity-70"
+                style={{ fontSize: '14px', fontWeight: 500 }}
               >
-                Finish Trip
+                Update Mileage
               </motion.button>
-            )}
+              {!trip.isFinished && (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticMedium(); setNewMileage(trip.currentMileage.toString()); setShowFinishTrip(true); }}
+                  className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm font-medium active:opacity-70"
+                  style={{ fontSize: '14px', fontWeight: 500 }}
+                >
+                  Finish Trip
+                </motion.button>
+              )}
+            </div>
           </div>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Loads Section */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 
-              className="text-xl font-bold text-white tracking-tight"
-              style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                fontWeight: 700
-              }}
-            >
+      {/* Scrollable Content Area */}
+      <div className="flex-1 scroll-area safe-left safe-right safe-bottom">
+        <div className="px-4 pb-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
               Loads
             </h2>
             {!trip.isFinished && (
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  hapticMedium();
-                  setShowAddLoad(true);
-                }}
-                className="glass rounded-xl px-4 py-2.5 text-white font-medium active:opacity-70 flex items-center gap-2"
-                style={{ fontSize: '15px', fontWeight: 500 }}
+                onClick={() => { hapticMedium(); setShowAddLoad(true); }}
+                className="glass rounded-xl px-3 py-2 text-white font-medium active:opacity-70 flex items-center gap-1.5"
+                style={{ fontSize: '14px', fontWeight: 500 }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -418,38 +369,22 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
           </div>
 
           {trip.loads.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="glass rounded-2xl p-8 text-center"
-            >
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="glass rounded-2xl p-8 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/5 flex items-center justify-center">
+                <svg className="w-7 h-7 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>
               <p className="text-white/60 text-sm">No loads yet. Add your first load!</p>
-            </motion.div>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {trip.loads.map((load, index) => (
-                <motion.div
-                  key={load.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="glass rounded-2xl p-4 active:opacity-80"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 
-                          className="text-lg font-semibold text-white"
-                          style={{ 
-                            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
-                            fontWeight: 600
-                          }}
-                        >
+                <div key={load.id} className="glass rounded-2xl p-3.5">
+                  <div className="flex justify-between items-start mb-2.5">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <h3 className="text-base font-semibold text-white" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif', fontWeight: 600 }}>
                           Load {index + 1}
                         </h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -470,17 +405,13 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                       )}
                     </div>
                     {!trip.isFinished && (
-                      <div className="flex gap-2 ml-3">
+                      <div className="flex gap-1.5 flex-shrink-0">
                         <motion.button
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            hapticLight();
-                            setEditStops(load.stops.length.toString());
-                            setShowEditLoad(load.id);
-                          }}
+                          onClick={() => { hapticLight(); setEditStops(load.stops.length.toString()); setShowEditLoad(load.id); }}
                           className="p-2 glass rounded-lg text-white/90 active:opacity-70"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </motion.button>
@@ -490,7 +421,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                           disabled={updating}
                           className="p-2 glass rounded-lg text-red-400 active:opacity-70 disabled:opacity-50"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </motion.button>
@@ -500,321 +431,282 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
                   {/* Stops List */}
                   {load.stops.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <p className="text-gray-400 text-sm font-medium mb-2">Stops:</p>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-white/10">
+                      <p className="text-white/50 text-xs font-medium mb-1.5">Stops:</p>
+                      <div className="space-y-1">
                         {load.stops.map((stop, stopIndex) => (
-                          <motion.div
-                            key={stop.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="glass rounded-xl p-3 border border-white/10 flex items-center justify-between group/stop"
-                          >
-                            <span className="text-white font-medium">Stop {stopIndex + 1}</span>
+                          <div key={stop.id} className="flex items-center justify-between glass rounded-lg px-2.5 py-2">
+                            <span className="text-white/80 text-xs">Stop {stopIndex + 1}</span>
                             {!trip.isFinished && (
                               <motion.button
-                                whileHover={{ scale: 1.2 }}
-                                whileTap={{ scale: 0.8 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={() => handleDeleteStop(load.id, stop.id)}
                                 disabled={updating}
-                                className="opacity-0 group-hover/stop:opacity-100 text-red-400 hover:text-red-300 transition-all p-1"
-                                title="Delete Stop"
+                                className="p-1 glass rounded text-red-400 active:opacity-70 disabled:opacity-50"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </motion.button>
                             )}
-                          </motion.div>
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
-                </motion.div>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Add Load Modal */}
+      {/* Modals - Bottom Sheets on Mobile */}
       <AnimatePresence>
         {showAddLoad && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center p-4 z-50 safe-bottom"
-            onClick={() => {
-              hapticLight();
-              setShowAddLoad(false);
-            }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            onClick={() => { hapticLight(); setShowAddLoad(false); }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/20 relative overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <h2 
-                  className="text-2xl font-bold text-white mb-5"
-                  style={{ 
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                    fontWeight: 700
-                  }}
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-white mb-5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
+                Add New Load
+              </h2>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
+                  Load Type
+                </label>
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { hapticLight(); setLoadType('wet'); }}
+                    className={`py-4 rounded-xl font-medium border ${loadType === 'wet' ? 'bg-blue-500/30 border-blue-500 text-blue-300' : 'glass border-white/10 text-white/60 active:opacity-70'}`}
+                    style={{ fontSize: '15px', fontWeight: 500 }}
+                  >
+                    💧 Wet Load
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { hapticLight(); setLoadType('dry'); }}
+                    className={`py-4 rounded-xl font-medium border ${loadType === 'dry' ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'glass border-white/10 text-white/60 active:opacity-70'}`}
+                    style={{ fontSize: '15px', fontWeight: 500 }}
+                  >
+                    📦 Dry Load
+                  </motion.button>
+                </div>
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
+                  Number of Stops
+                </label>
+                <input
+                  type="number"
+                  value={newStops}
+                  onChange={(e) => setNewStops(e.target.value)}
+                  className="w-full px-4 py-4 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                  placeholder="Enter number of stops"
+                  min="1"
+                  style={{ fontSize: '17px' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticLight(); setShowAddLoad(false); }}
+                  className="flex-1 glass rounded-xl text-white/90 font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 500 }}
                 >
-                  Add New Load
-                </h2>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
-                    Load Type
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 mb-6">
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        hapticLight();
-                        setLoadType('wet');
-                      }}
-                      className={`py-4 rounded-xl font-medium transition-all border ${
-                        loadType === 'wet'
-                          ? 'bg-blue-500/30 border-blue-500 text-blue-300'
-                          : 'glass border-white/10 text-white/60 active:opacity-70'
-                      }`}
-                      style={{ fontSize: '15px', fontWeight: 500 }}
-                    >
-                      💧 Wet Load
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        hapticLight();
-                        setLoadType('dry');
-                      }}
-                      className={`py-4 rounded-xl font-medium transition-all border ${
-                        loadType === 'dry'
-                          ? 'bg-amber-500/30 border-amber-500 text-amber-300'
-                          : 'glass border-white/10 text-white/60 active:opacity-70'
-                      }`}
-                      style={{ fontSize: '15px', fontWeight: 500 }}
-                    >
-                      📦 Dry Load
-                    </motion.button>
-                  </div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
-                    Number of Stops
-                  </label>
-                  <input
-                    type="number"
-                    value={newStops}
-                    onChange={(e) => setNewStops(e.target.value)}
-                    className="w-full px-4 py-4 bg-dark-700/50 border-2 border-dark-600 rounded-xl focus:border-blue-500 focus:outline-none text-white text-lg"
-                    placeholder="Enter number of stops"
-                    min="1"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      hapticLight();
-                      setShowAddLoad(false);
-                    }}
-                    className="flex-1 glass rounded-xl text-white/90 font-medium py-3 active:opacity-70"
-                    style={{ fontSize: '17px', fontWeight: 500 }}
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      hapticMedium();
-                      handleAddLoad();
-                    }}
-                    disabled={updating}
-                    className="flex-1 glass rounded-xl text-white font-medium py-3 active:opacity-70 disabled:opacity-50"
-                    style={{ fontSize: '17px', fontWeight: 600 }}
-                  >
-                    {updating ? 'Adding...' : 'Add Load'}
-                  </motion.button>
-                </div>
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticMedium(); handleAddLoad(); }}
+                  disabled={updating}
+                  className="flex-1 glass rounded-xl text-white font-medium py-3.5 active:opacity-70 disabled:opacity-50"
+                  style={{ fontSize: '17px', fontWeight: 600 }}
+                >
+                  {updating ? 'Adding...' : 'Add Load'}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Update Mileage Modal */}
-      <AnimatePresence>
         {showUpdateMileage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setShowUpdateMileage(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            onClick={() => { hapticLight(); setShowUpdateMileage(false); }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/20 relative overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <h2 className="text-3xl font-bold text-white mb-6">Update Mileage</h2>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
-                    Current Odometer
-                  </label>
-                  <input
-                    type="number"
-                    value={newMileage}
-                    onChange={(e) => setNewMileage(e.target.value)}
-                    className="w-full px-4 py-4 bg-dark-700/50 border-2 border-dark-600 rounded-xl focus:border-blue-500 focus:outline-none text-white text-lg"
-                    placeholder="Enter current mileage"
-                    min={trip.startMileage}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowUpdateMileage(false)}
-                    className="flex-1 glass hover:border-white/30 border border-white/10 text-gray-300 font-semibold py-3 rounded-xl transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleUpdateMileage}
-                    disabled={updating}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg"
-                  >
-                    {updating ? 'Updating...' : 'Update'}
-                  </motion.button>
-                </div>
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-white mb-5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
+                Update Mileage
+              </h2>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
+                  Current Odometer
+                </label>
+                <input
+                  type="number"
+                  value={newMileage}
+                  onChange={(e) => setNewMileage(e.target.value)}
+                  className="w-full px-4 py-4 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                  placeholder="Enter current mileage"
+                  min={trip.startMileage}
+                  style={{ fontSize: '17px' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticLight(); setShowUpdateMileage(false); }}
+                  className="flex-1 glass rounded-xl text-white/90 font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 500 }}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticMedium(); handleUpdateMileage(); }}
+                  disabled={updating}
+                  className="flex-1 glass rounded-xl text-white font-medium py-3.5 active:opacity-70 disabled:opacity-50"
+                  style={{ fontSize: '17px', fontWeight: 600 }}
+                >
+                  {updating ? 'Updating...' : 'Update'}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Finish Trip Modal */}
-      <AnimatePresence>
         {showFinishTrip && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setShowFinishTrip(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            onClick={() => { hapticLight(); setShowFinishTrip(false); }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/20 relative overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <h2 className="text-3xl font-bold text-white mb-6">Finish Trip</h2>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
-                    Final Odometer
-                  </label>
-                  <input
-                    type="number"
-                    value={newMileage}
-                    onChange={(e) => setNewMileage(e.target.value)}
-                    className="w-full px-4 py-4 bg-dark-700/50 border-2 border-dark-600 rounded-xl focus:border-green-500 focus:outline-none text-white text-lg"
-                    placeholder="Enter final mileage"
-                    min={trip.startMileage}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowFinishTrip(false)}
-                    className="flex-1 glass hover:border-white/30 border border-white/10 text-gray-300 font-semibold py-3 rounded-xl transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleFinishTrip}
-                    disabled={updating}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg"
-                  >
-                    {updating ? 'Finishing...' : 'Finish Trip'}
-                  </motion.button>
-                </div>
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-white mb-5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
+                Finish Trip
+              </h2>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
+                  Final Odometer
+                </label>
+                <input
+                  type="number"
+                  value={newMileage}
+                  onChange={(e) => setNewMileage(e.target.value)}
+                  className="w-full px-4 py-4 glass rounded-xl border border-white/10 focus:border-green-500 focus:outline-none text-white"
+                  placeholder="Enter final mileage"
+                  min={trip.startMileage}
+                  style={{ fontSize: '17px' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticLight(); setShowFinishTrip(false); }}
+                  className="flex-1 glass rounded-xl text-white/90 font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 500 }}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticMedium(); handleFinishTrip(); }}
+                  disabled={updating}
+                  className="flex-1 glass rounded-xl text-white font-medium py-3.5 active:opacity-70 disabled:opacity-50"
+                  style={{ fontSize: '17px', fontWeight: 600 }}
+                >
+                  {updating ? 'Finishing...' : 'Finish Trip'}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Edit Load Modal */}
-      <AnimatePresence>
         {showEditLoad && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setShowEditLoad(null)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            onClick={() => { hapticLight(); setShowEditLoad(null); }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/20 relative overflow-hidden"
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <h2 className="text-3xl font-bold text-white mb-6">Edit Load</h2>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-300 mb-3">
-                    Number of Stops
-                  </label>
-                  <input
-                    type="number"
-                    value={editStops}
-                    onChange={(e) => setEditStops(e.target.value)}
-                    className="w-full px-4 py-4 bg-dark-700/50 border-2 border-dark-600 rounded-xl focus:border-blue-500 focus:outline-none text-white text-lg"
-                    placeholder="Enter number of stops"
-                    min="1"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowEditLoad(null)}
-                    className="flex-1 glass hover:border-white/30 border border-white/10 text-gray-300 font-semibold py-3 rounded-xl transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => showEditLoad && handleEditLoad(showEditLoad)}
-                    disabled={updating}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg"
-                  >
-                    {updating ? 'Updating...' : 'Update Load'}
-                  </motion.button>
-                </div>
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-white mb-5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
+                Edit Load
+              </h2>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-white/90 mb-3" style={{ fontSize: '15px', fontWeight: 500 }}>
+                  Number of Stops
+                </label>
+                <input
+                  type="number"
+                  value={editStops}
+                  onChange={(e) => setEditStops(e.target.value)}
+                  className="w-full px-4 py-4 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                  placeholder="Enter number of stops"
+                  min="1"
+                  style={{ fontSize: '17px' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => { hapticLight(); setShowEditLoad(null); }}
+                  className="flex-1 glass rounded-xl text-white/90 font-medium py-3.5 active:opacity-70"
+                  style={{ fontSize: '17px', fontWeight: 500 }}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => showEditLoad && handleEditLoad(showEditLoad)}
+                  disabled={updating}
+                  className="flex-1 glass rounded-xl text-white font-medium py-3.5 active:opacity-70 disabled:opacity-50"
+                  style={{ fontSize: '17px', fontWeight: 600 }}
+                >
+                  {updating ? 'Updating...' : 'Update Load'}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
