@@ -4,6 +4,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import TripPage from '@/components/TripPage';
 
+// Required for static export with dynamic routes
+export function generateStaticParams() {
+  return [];
+}
+
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
