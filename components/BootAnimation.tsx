@@ -13,8 +13,8 @@ export default function BootAnimation({ onComplete }: BootAnimationProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShow(false);
-      setTimeout(onComplete, 500);
-    }, 2000);
+      setTimeout(onComplete, 300);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, [onComplete]);
@@ -25,70 +25,62 @@ export default function BootAnimation({ onComplete }: BootAnimationProps) {
     <motion.div
       initial={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-dark-900 via-primary-900 to-primary-800 relative overflow-hidden"
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black"
     >
-      {/* Animated background elements */}
+      {/* Subtle animated gradient background */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
           animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.5, 0.3],
+            scale: [1, 1.3, 1],
+            opacity: [0.1, 0.2, 0.1],
           }}
           transition={{
-            duration: 3,
+            duration: 4,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: 1,
-          }}
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/20 rounded-full blur-3xl"
         />
       </div>
 
-      <div className="text-center relative z-10">
+      <div className="text-center relative z-10 px-4">
         <motion.div
-          initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
-          animate={{ scale: 1, opacity: 1, rotate: 0 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="mb-8"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ 
+            duration: 0.6, 
+            ease: [0.16, 1, 0.3, 1] // Apple-like easing
+          }}
         >
-          <h1 className="text-7xl md:text-9xl font-bold bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent mb-6">
-            Swifto
-          </h1>
+          <motion.h1
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="text-5xl sm:text-6xl font-bold text-white mb-3 tracking-tight"
+            style={{ 
+              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+              fontWeight: 700,
+              letterSpacing: '-0.02em'
+            }}
+          >
+            Swift Will F*** You
+          </m1>
           <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: '100%' }}
-            transition={{ duration: 1, delay: 0.3, ease: 'easeInOut' }}
-            className="h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 mx-auto max-w-xs rounded-full"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: '60%', opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent mx-auto rounded-full"
           />
-        </motion.div>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="text-2xl md:text-3xl text-white/90 font-light mb-8"
-        >
-          Trip & Pay Calculator
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1 }}
-          className="mt-8"
-        >
-          <div className="inline-block w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 0.6, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="text-sm sm:text-base text-white/60 font-light mt-4 tracking-wide"
+            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}
+          >
+            Trip & Pay Calculator
+          </motion.p>
         </motion.div>
       </div>
     </motion.div>

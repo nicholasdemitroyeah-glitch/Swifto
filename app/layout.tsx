@@ -2,7 +2,7 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 
 export const metadata = {
-  title: 'Swifto: Trip & Pay Calculator',
+  title: 'Swift Will F*** You',
   description: 'Track trips, loads, stops, and calculate pay for Swift truck drivers',
 };
 
