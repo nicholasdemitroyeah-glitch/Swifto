@@ -1,18 +1,21 @@
 'use client';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import TripPage from '@/components/TripPage';
+import { useEffect } from 'react';
 
 export default function TripDetailPage() {
-  const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const tripId = Array.isArray(params.id) ? params.id[0] : params.id as string;
+  const tripId = searchParams.get('id');
 
-  const handleFinishTrip = () => {
-    router.push('/dashboard');
-  };
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -23,9 +26,17 @@ export default function TripDetailPage() {
   }
 
   if (!user) {
-    router.push('/');
     return null;
   }
+
+  if (!tripId) {
+    router.push('/dashboard');
+    return null;
+  }
+
+  const handleFinishTrip = () => {
+    router.push('/dashboard');
+  };
 
   return <TripPage tripId={tripId} onFinishTrip={handleFinishTrip} />;
 }

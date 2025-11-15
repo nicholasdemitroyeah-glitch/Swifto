@@ -285,7 +285,7 @@ export default function Dashboard({ onStartNewTrip, onEditTrip }: DashboardProps
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => router.push(`/trip/${trip.id}`)}
+                          onClick={() => router.push(`/trip?id=${trip.id}`)}
                           className="flex-1 glass hover:border-white/30 border border-white/10 text-white font-semibold py-3 rounded-xl transition-all"
                         >
                           View Details

@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
     try {
       const tripId = await createTrip(user.uid, mileage);
-      router.push(`/trip/${tripId}`);
+      router.push(`/trip?id=${tripId}`);
       setStartMileage('');
       setShowStartTrip(false);
     } catch (error: any) {
@@ -44,7 +44,7 @@ export default function DashboardPage() {
   };
 
   const handleEditTrip = (tripId: string) => {
-    router.push(`/trip/${tripId}`);
+    router.push(`/trip?id=${tripId}`);
   };
 
   if (loading) {
