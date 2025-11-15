@@ -65,7 +65,7 @@ export default function BootAnimation({ onComplete }: BootAnimationProps) {
             }}
           >
             Swift Will F*** You
-          </m1>
+          </motion.h1>
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: '60%', opacity: 1 }}
