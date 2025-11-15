@@ -11,13 +11,13 @@
 
 html {
   height: 100%;
-  height: -webkit-fill-available;
   overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 body {
   height: 100%;
-  height: -webkit-fill-available;
   overflow: hidden;
   margin: 0;
   padding: 0;
@@ -28,7 +28,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
   position: fixed;
   width: 100%;
-  /* Prevent pull-to-refresh and bounce */
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
@@ -36,22 +35,19 @@ body {
   -webkit-user-select: none;
 }
 
-/* Allow text selection in inputs */
 input, textarea, [contenteditable] {
   user-select: text;
   -webkit-user-select: text;
 }
 
-/* Mobile-first container - no max-width, full viewport */
 #__next {
   height: 100%;
-  height: -webkit-fill-available;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* Apple-like glassmorphism */
+/* Glass effect */
 .glass {
   background: rgba(28, 28, 30, 0.8);
   backdrop-filter: saturate(180%) blur(20px);
@@ -60,32 +56,13 @@ input, textarea, [contenteditable] {
 }
 
 .glass-strong {
-  background: rgba(18, 18, 18, 0.9);
+  background: rgba(18, 18, 18, 0.95);
   backdrop-filter: saturate(180%) blur(30px);
   -webkit-backdrop-filter: saturate(180%) blur(30px);
   border: 0.5px solid rgba(255, 255, 255, 0.15);
 }
 
-/* Safe area insets */
-@supports (padding: max(0px)) {
-  .safe-top {
-    padding-top: max(0.75rem, env(safe-area-inset-top));
-  }
-  
-  .safe-bottom {
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-  }
-  
-  .safe-left {
-    padding-left: max(1rem, env(safe-area-inset-left));
-  }
-  
-  .safe-right {
-    padding-right: max(1rem, env(safe-area-inset-right));
-  }
-}
-
-/* Scrollable content area */
+/* Scrollable area */
 .scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -94,24 +71,22 @@ input, textarea, [contenteditable] {
   overscroll-behavior-y: contain;
 }
 
-/* Hide scrollbar but keep functionality */
 .scroll-area::-webkit-scrollbar {
-  width: 0;
-  background: transparent;
+  display: none;
 }
 
-/* Custom scrollbar for webkit (if needed) */
-.scroll-area::-webkit-scrollbar-thumb {
-  background: transparent;
-}
-
-/* Button press effect */
-.btn-press:active {
-  transform: scale(0.96);
-  opacity: 0.8;
-}
-
-/* Smooth transitions */
-* {
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+/* Safe areas */
+@supports (padding: max(0px)) {
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  .safe-left {
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  .safe-right {
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
 }
