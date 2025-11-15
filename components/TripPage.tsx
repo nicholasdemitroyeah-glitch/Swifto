@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getTrip, updateTrip, getSettings, Trip, Settings, Load, Stop } from '@/lib/db';
-import { calculateTripPay, formatCurrency } from '@/lib/utils';
+import { calculateTripPay, formatCurrency, formatDateTime } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
