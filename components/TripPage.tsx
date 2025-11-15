@@ -544,8 +544,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-            onClick={() => setShowAddLoad(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center p-4 z-50 safe-bottom"
+            onClick={() => {
+              hapticLight();
+              setShowAddLoad(false);
+            }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -556,33 +559,47 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-3xl" />
               <div className="relative z-10">
-                <h2 className="text-3xl font-bold text-white mb-6">Add New Load</h2>
+                <h2 
+                  className="text-2xl font-bold text-white mb-5"
+                  style={{ 
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                    fontWeight: 700
+                  }}
+                >
+                  Add New Load
+                </h2>
                 <div className="mb-6">
                   <label className="block text-sm font-semibold text-gray-300 mb-3">
                     Load Type
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-6">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setLoadType('wet')}
-                      className={`py-4 rounded-xl font-semibold transition-all border-2 ${
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        hapticLight();
+                        setLoadType('wet');
+                      }}
+                      className={`py-4 rounded-xl font-medium transition-all border ${
                         loadType === 'wet'
                           ? 'bg-blue-500/30 border-blue-500 text-blue-300'
-                          : 'glass border-white/10 text-gray-400 hover:border-blue-500/50'
+                          : 'glass border-white/10 text-white/60 active:opacity-70'
                       }`}
+                      style={{ fontSize: '15px', fontWeight: 500 }}
                     >
                       💧 Wet Load
                     </motion.button>
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setLoadType('dry')}
-                      className={`py-4 rounded-xl font-semibold transition-all border-2 ${
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        hapticLight();
+                        setLoadType('dry');
+                      }}
+                      className={`py-4 rounded-xl font-medium transition-all border ${
                         loadType === 'dry'
                           ? 'bg-amber-500/30 border-amber-500 text-amber-300'
-                          : 'glass border-white/10 text-gray-400 hover:border-amber-500/50'
+                          : 'glass border-white/10 text-white/60 active:opacity-70'
                       }`}
+                      style={{ fontSize: '15px', fontWeight: 500 }}
                     >
                       📦 Dry Load
                     </motion.button>
@@ -601,19 +618,25 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                 </div>
                 <div className="flex gap-3">
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowAddLoad(false)}
-                    className="flex-1 glass hover:border-white/30 border border-white/10 text-gray-300 font-semibold py-3 rounded-xl transition-all"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      hapticLight();
+                      setShowAddLoad(false);
+                    }}
+                    className="flex-1 glass rounded-xl text-white/90 font-medium py-3 active:opacity-70"
+                    style={{ fontSize: '17px', fontWeight: 500 }}
                   >
                     Cancel
                   </motion.button>
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleAddLoad}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      hapticMedium();
+                      handleAddLoad();
+                    }}
                     disabled={updating}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg"
+                    className="flex-1 glass rounded-xl text-white font-medium py-3 active:opacity-70 disabled:opacity-50"
+                    style={{ fontSize: '17px', fontWeight: 600 }}
                   >
                     {updating ? 'Adding...' : 'Add Load'}
                   </motion.button>
