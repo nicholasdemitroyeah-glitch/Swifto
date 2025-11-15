@@ -5,9 +5,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Uncomment and update if deploying to a subdirectory
-  // basePath: process.env.NODE_ENV === 'production' ? '/swifto-trip-pay-calculator' : '',
-  // assetPrefix: process.env.NODE_ENV === 'production' ? '/swifto-trip-pay-calculator' : '',
+  basePath: process.env.NODE_ENV === 'production' ? '/Swifto' : '',
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/Swifto' : '',
 }
 
 module.exports = nextConfig
