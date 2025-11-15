@@ -7,7 +7,7 @@ import { getWeeklyEarnings, formatCurrency, formatDate, formatDateTime, isInCurr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { hapticLight, hapticMedium, hapticHeavy } from '@/lib/haptics';
+import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess, hapticError } from '@/lib/haptics';
 
 interface DashboardProps {
   onStartNewTrip: () => void;
