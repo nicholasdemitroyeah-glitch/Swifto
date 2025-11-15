@@ -3,9 +3,9 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import TripPage from '@/components/TripPage';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 
-export default function TripDetailPage() {
+function TripContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -39,5 +39,17 @@ export default function TripDetailPage() {
   };
 
   return <TripPage tripId={tripId} onFinishTrip={handleFinishTrip} />;
+}
+
+export default function TripDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    }>
+      <TripContent />
+    </Suspense>
+  );
 }
 
