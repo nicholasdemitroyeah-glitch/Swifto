@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - cursor/implement-robust-background-tracking-and-n-transit-ui-redesign-a6ab
   workflow_dispatch:
 
 permissions:
