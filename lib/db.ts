@@ -25,9 +25,16 @@ export interface Settings {
   nightExtraCpm?: number; // dollars per mile extra during night (e.g., 0.06)
 }
 
+export interface GeoPointLite {
+  lat: number;
+  lng: number;
+}
+
 export interface Stop {
   id: string;
   name?: string;
+  arrivedAt?: Timestamp;
+  arrivedLocation?: GeoPointLite;
 }
 
 export interface Load {
@@ -35,6 +42,9 @@ export interface Load {
   stops: Stop[];
   loadType: 'wet' | 'dry';
   createdAt: Timestamp;
+  startLocation?: GeoPointLite;
+  finishedAt?: Timestamp;
+  finishedLocation?: GeoPointLite;
 }
 
 export interface Trip {
@@ -51,6 +61,11 @@ export interface Trip {
   finishedAt?: Timestamp;
   // Mileage driven during configured nightly window
   nightMiles?: number;
+  // Live tracking (segment) state - optional, for accuracy and resilience
+  trackingActive?: boolean;
+  trackingMilesBuffer?: number;
+  trackingNightMilesBuffer?: number;
+  trackingLastLocation?: GeoPointLite;
 }
 
 // Settings

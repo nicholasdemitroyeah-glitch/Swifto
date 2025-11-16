@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess, hapticError } from '@/lib/haptics';
+import Image from 'next/image';
+import swiftLogo from '@/resources/SWIFT.png';
 
 interface DashboardProps {
   onStartNewTrip: () => void;
@@ -99,12 +101,10 @@ export default function Dashboard({ onStartNewTrip, onEditTrip }: DashboardProps
       <div className="flex-shrink-0 safe-top">
         <div className="px-4 pt-2 pb-3">
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-2xl font-bold text-white" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
-                Dashboard
-              </h1>
+            <div className="flex-1 flex justify-center">
+              <Image src={swiftLogo} alt="Swift" style={{ objectFit: 'contain' }} width={120} height={36} priority />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-2">
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => { hapticLight(); router.push('/settings'); }}

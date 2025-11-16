@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getTrip, updateTrip, getSettings, Trip, Settings, Load, Stop } from '@/lib/db';
-import { calculateTripPay, formatCurrency, formatDateTime, isInNightWindow } from '@/lib/utils';
+import { calculateTripPay, formatCurrency, formatDateTime, isInNightWindow, haversineMiles } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
@@ -29,6 +29,10 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const [editStops, setEditStops] = useState('');
   const [loadType, setLoadType] = useState<'wet' | 'dry'>('dry');
   const [updating, setUpdating] = useState(false);
+  const [watchId, setWatchId] = useState<number | null>(null);
+  const [trackingMilesBuffer, setTrackingMilesBuffer] = useState(0);
+  const [trackingNightMilesBuffer, setTrackingNightMilesBuffer] = useState(0);
+  const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -61,6 +65,118 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       console.error('Error loading trip:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startTracking = () => {
+    if (watchId !== null) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLastCoords((prev) => {
+          if (prev) {
+            const delta = haversineMiles(prev, coords);
+            if (delta > 0) {
+              setTrackingMilesBuffer((m) => m + delta);
+              const now = new Date();
+              if (settings && isInNightWindow(now, settings)) {
+                setTrackingNightMilesBuffer((m) => m + delta);
+              }
+            }
+          }
+          return coords;
+        });
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+    );
+    setWatchId(id);
+  };
+
+  const stopTracking = () => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
+    setLastCoords(null);
+  };
+
+  const handleDepartStop = async (loadId: string) => {
+    if (!trip) return;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setLastCoords(coords);
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
+      startTracking();
+      // Set load.startLocation if missing
+      const updatedLoads = trip.loads.map(l => l.id === loadId ? { ...l, startLocation: l.startLocation ?? coords } : l);
+      await updateTrip(trip.id, { loads: updatedLoads, trackingActive: true, trackingLastLocation: coords, trackingMilesBuffer: 0, trackingNightMilesBuffer: 0 });
+      setTrip({ ...trip, loads: updatedLoads, trackingActive: true, trackingLastLocation: coords, trackingMilesBuffer: 0, trackingNightMilesBuffer: 0 });
+    } catch (e) {
+      alert('Location permission is required to start tracking.');
+    }
+  };
+
+  const handleArriveStop = async (loadId: string, stopId: string) => {
+    if (!trip || !settings) return;
+    setUpdating(true);
+    try {
+      stopTracking();
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+
+      const bufferMiles = trackingMilesBuffer;
+      const bufferNight = trackingNightMilesBuffer;
+
+      const newCurrentMileage = trip.currentMileage + bufferMiles;
+      const newNightMiles = (trip.nightMiles || 0) + bufferNight;
+
+      const updatedLoads = trip.loads.map(l => {
+        if (l.id !== loadId) return l;
+        const updatedStops = l.stops.map(s => s.id === stopId ? { ...s, arrivedAt: Timestamp.now(), arrivedLocation: coords } : s);
+        return { ...l, stops: updatedStops };
+      });
+      const tripMileage = newCurrentMileage - trip.startMileage;
+      const totalPay = calculateTripPay(tripMileage, updatedLoads, settings, newNightMiles);
+
+      await updateTrip(trip.id, {
+        loads: updatedLoads,
+        currentMileage: newCurrentMileage,
+        nightMiles: newNightMiles,
+        totalPay,
+        trackingActive: false,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLastLocation: null as any
+      });
+      setTrip({
+        ...trip,
+        loads: updatedLoads,
+        currentMileage: newCurrentMileage,
+        nightMiles: newNightMiles,
+        totalPay,
+        trackingActive: false,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLastLocation: undefined
+      });
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
+      hapticSuccess();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to mark arrival. Please try again.');
+      hapticError();
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -307,10 +423,10 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
               </div>
             </div>
             <div className="flex gap-2 mt-3">
-              <motion.button
+                <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { hapticLight(); setNewMileage(trip.currentMileage.toString()); setShowUpdateMileage(true); }}
-                className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm font-medium"
+                  className="flex-1 rounded-xl px-3 py-2.5 text-white text-sm font-medium bg-blue-600"
               >
                 Update
               </motion.button>
@@ -318,7 +434,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={() => { hapticMedium(); setNewMileage(trip.currentMileage.toString()); setShowFinishTrip(true); }}
-                  className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm font-medium"
+                    className="flex-1 rounded-xl px-3 py-2.5 text-white text-sm font-medium bg-blue-600"
                 >
                   Finish
                 </motion.button>
@@ -389,15 +505,41 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                     <div className="space-y-1 mt-2 pt-2 border-t border-white/10">
                       {load.stops.map((stop, stopIndex) => (
                         <div key={stop.id} className="flex items-center justify-between glass rounded-lg px-2.5 py-1.5">
-                          <span className="text-white/80 text-xs">Stop {stopIndex + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white/80 text-xs">Stop {stopIndex + 1}</span>
+                            {stop.arrivedAt && (
+                              <span className="text-green-400 text-xs">Arrived</span>
+                            )}
+                          </div>
                           {!trip.isFinished && (
-                            <motion.button
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleDeleteStop(load.id, stop.id)}
-                              className="text-red-400 text-xs"
-                            >
-                              ×
-                            </motion.button>
+                            <div className="flex items-center gap-2">
+                              {!stop.arrivedAt ? (
+                                <>
+                                  <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleDepartStop(load.id)}
+                                    className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
+                                  >
+                                    Depart
+                                  </motion.button>
+                                  <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleArriveStop(load.id, stop.id)}
+                                    className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
+                                  >
+                                    Arrived
+                                  </motion.button>
+                                </>
+                              ) : (
+                                <motion.button
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleDeleteStop(load.id, stop.id)}
+                                  className="text-red-400 text-xs"
+                                >
+                                  ×
+                                </motion.button>
+                              )}
+                            </div>
                           )}
                         </div>
                       ))}

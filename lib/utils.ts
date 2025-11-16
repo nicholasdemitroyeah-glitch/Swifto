@@ -15,8 +15,9 @@ export function calculateTripPay(
     dayMiles * settings.cpm +
     nightMilesCapped * (settings.cpm + effectiveNightExtra); // CPM is in dollars
   const loadsPay = loads.length * settings.payPerLoad;
-  const totalStops = loads.reduce((sum, load) => sum + load.stops.length, 0);
-  const stopsPay = totalStops * settings.payPerStop;
+  // Only pay for stops that have been arrived
+  const arrivedStops = loads.reduce((sum, load) => sum + load.stops.filter(s => !!s.arrivedAt).length, 0);
+  const stopsPay = arrivedStops * settings.payPerStop;
   
   return mileagePay + loadsPay + stopsPay;
 }
@@ -46,6 +47,23 @@ export function isInNightWindow(now: Date, settings: Settings): boolean {
   const end = settings.nightEndMinutes ?? (3 * 60);
   const nowMin = minutesSinceMidnight(now);
   return isInTimeWindow(nowMin, start, end);
+}
+
+export function haversineMiles(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 3958.7613; // miles
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+  return R * c;
 }
 
 export function getWeekStartDate(date: Date = new Date()): Date {
