@@ -255,29 +255,46 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   };
 
   const handleFinishTrip = async () => {
-    if (!trip || !settings || !newMileage) return;
-    const endMileage = parseFloat(newMileage);
-    if (isNaN(endMileage) || endMileage < trip.startMileage) {
+    if (!trip || !settings) return;
+    const provided = newMileage ? parseFloat(newMileage) : NaN;
+    if (newMileage && (isNaN(provided) || provided < trip.startMileage)) {
       alert('Please enter a valid final mileage');
       return;
     }
 
     setUpdating(true);
     try {
-      const previousMileage = trip.currentMileage;
-      const delta = Math.max(0, endMileage - previousMileage);
+      // Stop live tracking if active, and add buffered miles
+      stopTracking();
+      const bufferMiles = trackingMilesBuffer;
+      const bufferNight = trackingNightMilesBuffer;
 
-      const now = new Date();
-      const nightIncrement = (settings.nightPayEnabled && delta > 0 && isInNightWindow(now, settings)) ? delta : 0;
-      const newNightMiles = (trip.nightMiles || 0) + nightIncrement;
+      const previousOdo = trip.currentMileage;
+      let computedOdo = previousOdo + bufferMiles;
+      let nightMiles = (trip.nightMiles || 0) + bufferNight;
 
-      const tripMileage = endMileage - trip.startMileage;
-      const totalPay = calculateTripPay(tripMileage, trip.loads, settings, newNightMiles);
+      // If user provided final odometer, trust that and compare
+      if (!isNaN(provided)) {
+        // Compare tracking distance vs provided
+        const trackedTripMiles = computedOdo - trip.startMileage;
+        const providedTripMiles = provided - trip.startMileage;
+        const diff = Math.abs(providedTripMiles - trackedTripMiles);
+        if (diff > 1) {
+          // Optional: inform about discrepancy (silent in UI here)
+          console.log('Tracked vs provided miles differ by', diff.toFixed(2));
+        }
+        computedOdo = provided;
+        // For simplicity, keep nightMiles as accumulated from tracking buffer
+      }
+
+      const tripMileage = computedOdo - trip.startMileage;
+      const totalPay = calculateTripPay(tripMileage, trip.loads, settings, nightMiles);
+
       await updateTrip(tripId, {
-        endMileage,
-        currentMileage: endMileage,
+        endMileage: computedOdo,
+        currentMileage: computedOdo,
         totalPay,
-        nightMiles: newNightMiles,
+        nightMiles,
         isFinished: true,
         finishedAt: Timestamp.now(),
       });
