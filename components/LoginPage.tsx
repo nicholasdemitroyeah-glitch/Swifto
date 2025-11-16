@@ -1,15 +1,30 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
+import { isFirebaseConfigured } from '@/lib/firebase';
 import { hapticMedium } from '@/lib/haptics';
 
 export default function LoginPage() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, authError } = useAuth();
+  const [localError, setLocalError] = useState<string | null>(null);
+  const combinedError = localError || authError;
+  const signInDisabled = !isFirebaseConfigured;
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
+    if (signInDisabled) return;
     hapticMedium();
-    signInWithGoogle();
+    setLocalError(null);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to sign in right now. Please try again.';
+      setLocalError(message);
+    }
   };
 
   return (
@@ -44,8 +59,9 @@ export default function LoginPage() {
             transition={{ delay: 0.25 }}
             className="text-white/70 text-sm leading-relaxed px-4"
           >
-            A dark, data-forward interface inspired by Walmart&apos;s N-Transit platform for
-            tracking live loads, mileage, and pay calculations without losing state in the field.
+            A dark, data-forward interface inspired by Walmart&apos;s N-Transit
+            platform for tracking live loads, mileage, and pay calculations
+            without losing state in the field.
           </motion.p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="ntransit-chip">Live miles</span>
@@ -61,9 +77,12 @@ export default function LoginPage() {
           className="glass rounded-3xl p-6 space-y-4 border border-white/5"
         >
           <div className="text-left">
-            <div className="text-xs uppercase tracking-[0.35em] text-white/50 mb-2">Secure Access</div>
+            <div className="text-xs uppercase tracking-[0.35em] text-white/50 mb-2">
+              Secure Access
+            </div>
             <p className="text-white/80 text-sm">
-              Sign in to sync every stop segment, projected pay, and mileage buffer in real time.
+              Sign in to sync every stop segment, projected pay, and mileage
+              buffer in real time.
             </p>
           </div>
           <div className="flex items-center justify-center gap-1 text-[0.7rem] text-white/40">
@@ -78,7 +97,10 @@ export default function LoginPage() {
           transition={{ delay: 0.45 }}
           whileTap={{ scale: 0.97 }}
           onClick={handleSignIn}
-          className="w-full ntransit-cta px-6 py-4 flex items-center justify-center gap-3 text-base"
+          disabled={signInDisabled}
+          className={`w-full ntransit-cta px-6 py-4 flex items-center justify-center gap-3 text-base ${
+            signInDisabled ? 'opacity-40 cursor-not-allowed' : ''
+          }`}
         >
           <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/20">
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -100,8 +122,22 @@ export default function LoginPage() {
               />
             </svg>
           </span>
-          <span className="font-semibold tracking-wide">Continue with Google</span>
+          <span className="font-semibold tracking-wide">
+            Continue with Google
+          </span>
         </motion.button>
+
+        {(combinedError || signInDisabled) && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+            className="text-center text-sm text-red-200/80 bg-red-500/10 border border-red-300/20 rounded-2xl px-4 py-3"
+          >
+            {combinedError ??
+              'Firebase credentials are not configured. Add the NEXT_PUBLIC_FIREBASE_* env vars and redeploy to enable sign-in.'}
+          </motion.div>
+        )}
 
         <motion.p
           initial={{ opacity: 0 }}
@@ -109,8 +145,9 @@ export default function LoginPage() {
           transition={{ delay: 0.55 }}
           className="text-center text-xs text-white/40 px-6"
         >
-          Your trip, load, and settings data stay encrypted in Firestore. Nothing is stored on this device beyond the
-          resilient stop tracker buffer.
+          Your trip, load, and settings data stay encrypted in Firestore.
+          Nothing is stored on this device beyond the resilient stop tracker
+          buffer.
         </motion.p>
       </motion.div>
     </div>

@@ -11,11 +11,23 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const requiredConfigKeys: Array<keyof typeof firebaseConfig> = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'appId',
+];
+
+const hasValidFirebaseConfig = requiredConfigKeys.every((key) => {
+  const value = firebaseConfig[key];
+  return typeof value === 'string' && value.trim().length > 0;
+});
+
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && hasValidFirebaseConfig) {
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
@@ -23,8 +35,11 @@ if (typeof window !== 'undefined') {
   }
   auth = getAuth(app);
   db = getFirestore(app);
+} else if (typeof window !== 'undefined' && !hasValidFirebaseConfig) {
+  console.warn('Firebase config missing. Authentication and Firestore features are disabled until NEXT_PUBLIC_FIREBASE_* env vars are set.');
 }
 
 export { auth, db };
 export default app;
+export const isFirebaseConfigured = hasValidFirebaseConfig;
 
