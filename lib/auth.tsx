@@ -77,9 +77,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
+    // Listen for Firebase initialization event
+    const handleFirebaseInitialized = () => {
+      if (!auth) {
+        initializeFirebase();
+      }
+      if (auth && setupAuthListener()) {
+        if (pollInterval) clearInterval(pollInterval);
+      }
+    };
+    window.addEventListener('firebase-initialized', handleFirebaseInitialized);
+    window.addEventListener('firebase-config-loaded', handleFirebaseInitialized);
+
     // Auth not ready yet, poll for it
     let attempts = 0;
-    const maxAttempts = 20; // 2 seconds total
+    const maxAttempts = 50; // 5 seconds total - give more time for script to load
     pollInterval = setInterval(() => {
       attempts++;
       if (!auth) {
@@ -98,17 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 100);
 
-    // Also listen for config loaded event
-    const handleConfigLoaded = () => {
-      if (!auth) {
-        initializeFirebase();
-      }
-    };
-    window.addEventListener('firebase-config-loaded', handleConfigLoaded);
-
     return () => {
       if (pollInterval) clearInterval(pollInterval);
-      window.removeEventListener('firebase-config-loaded', handleConfigLoaded);
+      window.removeEventListener('firebase-initialized', handleFirebaseInitialized);
+      window.removeEventListener('firebase-config-loaded', handleFirebaseInitialized);
       if (unsubscribe) unsubscribe();
     };
   }, []);

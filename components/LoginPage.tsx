@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { isFirebaseConfigured } from '@/lib/firebase';
@@ -9,16 +9,44 @@ import { hapticMedium } from '@/lib/haptics';
 export default function LoginPage() {
   const { signInWithGoogle, authError } = useAuth();
   const [localError, setLocalError] = useState<string | null>(null);
+  const [configAvailable, setConfigAvailable] = useState(false);
   const combinedError = localError || authError;
-  const signInDisabled = !isFirebaseConfigured();
+  
+  // Check for config availability reactively
+  useEffect(() => {
+    const checkConfig = () => {
+      setConfigAvailable(isFirebaseConfigured());
+    };
+    
+    checkConfig();
+    const interval = setInterval(checkConfig, 500);
+    
+    // Also listen for config loaded
+    window.addEventListener('firebase-config-loaded', checkConfig);
+    window.addEventListener('firebase-initialized', checkConfig);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('firebase-config-loaded', checkConfig);
+      window.removeEventListener('firebase-initialized', checkConfig);
+    };
+  }, []);
+  
+  const signInDisabled = !configAvailable;
 
   const handleSignIn = async () => {
-    if (signInDisabled) return;
+    if (signInDisabled) {
+      console.log('Sign in disabled, config available:', isFirebaseConfigured());
+      return;
+    }
     hapticMedium();
     setLocalError(null);
     try {
+      console.log('Attempting sign in...');
       await signInWithGoogle();
+      console.log('Sign in successful');
     } catch (error) {
+      console.error('Sign in error:', error);
       const message =
         error instanceof Error
           ? error.message

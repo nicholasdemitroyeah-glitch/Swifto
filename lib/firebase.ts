@@ -65,11 +65,13 @@ const missingEnvKeys = requiredConfigKeys.filter((key) => !isNonEmptyString(envF
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
-let initializationAttempted = false;
+let isInitialized = false;
 
-const initializeFirebase = (): void => {
-  if (initializationAttempted) return;
-  initializationAttempted = true;
+const initializeFirebase = (): boolean => {
+  // If already successfully initialized, don't reinitialize
+  if (isInitialized && auth) {
+    return true;
+  }
 
   const firebaseConfig = getFirebaseConfig();
   const hasValidFirebaseConfig = Boolean(firebaseConfig);
@@ -83,19 +85,18 @@ const initializeFirebase = (): void => {
       }
       auth = getAuth(app);
       db = getFirestore(app);
+      isInitialized = true;
+      console.log('Firebase initialized successfully');
+      return true;
     } catch (error) {
       console.error('Failed to initialize Firebase:', error);
+      return false;
     }
   } else if (typeof window !== 'undefined' && !hasValidFirebaseConfig) {
-    const hint =
-      missingEnvKeys.length > 0
-        ? `Missing environment keys: ${missingEnvKeys.join(', ')}.`
-        : 'Provide config via NEXT_PUBLIC_FIREBASE_* env vars or /public/firebase-config.js.';
-    console.warn(
-      'Firebase config missing. Authentication and Firestore features are disabled until credentials are provided. ' +
-        hint
-    );
+    // Don't log warning on every attempt, only if we've waited a bit
+    return false;
   }
+  return false;
 };
 
 // Initialize immediately if config is available (from env vars)
@@ -106,25 +107,33 @@ if (typeof window !== 'undefined') {
   } else {
     // Wait for runtime config script to load
     const tryInit = () => {
-      const config = getFirebaseConfig();
-      if (config) {
-        initializeFirebase();
+      if (!isInitialized) {
+        const success = initializeFirebase();
+        if (success) {
+          // Dispatch event to notify that Firebase is ready
+          window.dispatchEvent(new Event('firebase-initialized'));
+        }
       }
     };
 
-    // Listen for config loaded event
+    // Listen for config loaded event (if we add it back)
     window.addEventListener('firebase-config-loaded', tryInit);
 
-    // Also try on DOMContentLoaded
+    // Try multiple times to catch the script loading
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
         setTimeout(tryInit, 100);
+        setTimeout(tryInit, 500);
+        setTimeout(tryInit, 1000);
+        setTimeout(tryInit, 2000);
       });
     } else {
       // DOM already loaded, check immediately and retry if needed
       setTimeout(tryInit, 100);
-      // Also retry after a longer delay in case script loads late
+      setTimeout(tryInit, 500);
       setTimeout(tryInit, 1000);
+      setTimeout(tryInit, 2000);
+      setTimeout(tryInit, 3000);
     }
   }
 }
