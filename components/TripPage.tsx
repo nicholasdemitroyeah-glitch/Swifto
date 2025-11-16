@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getTrip, updateTrip, getSettings, Trip, Settings, Load, Stop } from '@/lib/db';
 import { calculateTripPay, formatCurrency, formatDateTime, isInNightWindow, haversineMiles } from '@/lib/utils';
@@ -18,6 +18,18 @@ interface TripPageProps {
   tripId: string;
   onFinishTrip: () => void;
 }
+
+const TRACKING_STORAGE_KEY = 'ntransit-tracking-state-v1';
+
+type PersistedTrackingState = {
+  tripId: string;
+  activeLoadId: string | null;
+  activeStopId: string | null;
+  trackingMilesBuffer: number;
+  trackingNightMilesBuffer: number;
+  lastCoords?: { lat: number; lng: number } | null;
+  updatedAt: number;
+};
 
 export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const { user } = useAuth();
@@ -45,6 +57,37 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const [screen, setScreen] = useState<'loads' | 'load-detail'>('loads');
   const [openedLoadId, setOpenedLoadId] = useState<string | null>(null);
 
+  const trackingStateRef = useRef<PersistedTrackingState | null>(null);
+  const trackingSnapshotRef = useRef<PersistedTrackingState | null>(null);
+  const restoredTrackingRef = useRef(false);
+  const settingsRef = useRef<Settings | null>(null);
+  const activeTargetRef = useRef<{ loadId: string | null; stopId: string | null }>({ loadId: null, stopId: null });
+  const tripIdRef = useRef<string | null>(null);
+
+  const readPersistedTrackingState = useCallback((): PersistedTrackingState | null => {
+    if (typeof window === 'undefined') return null;
+    if (trackingStateRef.current) return trackingStateRef.current;
+    const raw = window.localStorage.getItem(TRACKING_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as PersistedTrackingState;
+      trackingStateRef.current = parsed;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const writePersistedTrackingState = useCallback((state: PersistedTrackingState | null) => {
+    if (typeof window === 'undefined') return;
+    trackingStateRef.current = state;
+    if (!state) {
+      window.localStorage.removeItem(TRACKING_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(TRACKING_STORAGE_KEY, JSON.stringify(state));
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadTrip();
@@ -54,6 +97,22 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   useEffect(() => {
     initSounds();
   }, []);
+
+  useEffect(() => {
+    restoredTrackingRef.current = false;
+  }, [tripId]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    activeTargetRef.current = { loadId: activeLoadId, stopId: activeStopId };
+  }, [activeLoadId, activeStopId]);
+
+  useEffect(() => {
+    tripIdRef.current = trip?.id ?? null;
+  }, [trip?.id]);
 
   const loadTrip = async () => {
     if (!user) return;
@@ -83,18 +142,22 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
     }
   };
 
-  const startTracking = () => {
+  const startTracking = useCallback(() => {
     if (watchId !== null) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (!activeTargetRef.current.loadId) {
+          setLastCoords(coords);
+          return;
+        }
         setLastCoords((prev) => {
           if (prev) {
             const delta = haversineMiles(prev, coords);
             if (delta > 0) {
               setTrackingMilesBuffer((m) => m + delta);
-              const now = new Date();
-              if (settings && isInNightWindow(now, settings)) {
+              const activeSettings = settingsRef.current;
+              if (activeSettings && isInNightWindow(new Date(), activeSettings)) {
                 setTrackingNightMilesBuffer((m) => m + delta);
               }
             }
@@ -108,7 +171,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
     );
     setWatchId(id);
-  };
+  }, [watchId]);
 
   const stopTracking = () => {
     if (watchId !== null) {
@@ -117,6 +180,156 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
     }
     setLastCoords(null);
   };
+
+  useEffect(() => {
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
+
+  useEffect(() => {
+    if (!trip || !activeLoadId) return;
+    const snapshot: PersistedTrackingState = {
+      tripId: trip.id,
+      activeLoadId,
+      activeStopId,
+      trackingMilesBuffer,
+      trackingNightMilesBuffer,
+      lastCoords,
+      updatedAt: Date.now(),
+    };
+    trackingSnapshotRef.current = snapshot;
+    writePersistedTrackingState(snapshot);
+  }, [
+    trip?.id,
+    activeLoadId,
+    activeStopId,
+    trackingMilesBuffer,
+    trackingNightMilesBuffer,
+    lastCoords,
+    writePersistedTrackingState,
+  ]);
+
+  useEffect(() => {
+    if (!activeLoadId) {
+      trackingSnapshotRef.current = null;
+      writePersistedTrackingState(null);
+    }
+  }, [activeLoadId, writePersistedTrackingState]);
+
+  useEffect(() => {
+    if (!trip || !settings || restoredTrackingRef.current) return;
+    const stored = readPersistedTrackingState();
+    if (stored && stored.tripId === trip.id && stored.activeLoadId) {
+      activeTargetRef.current = { loadId: stored.activeLoadId, stopId: stored.activeStopId || null };
+      setActiveLoadId(stored.activeLoadId);
+      setActiveStopId(stored.activeStopId || null);
+      setTrackingMilesBuffer(stored.trackingMilesBuffer || 0);
+      setTrackingNightMilesBuffer(stored.trackingNightMilesBuffer || 0);
+      if (stored.lastCoords) {
+        setLastCoords(stored.lastCoords);
+      }
+      setShowStopTracker(true);
+      trackingSnapshotRef.current = stored;
+      startTracking();
+      restoredTrackingRef.current = true;
+      return;
+    }
+    if (trip.trackingActive && trip.trackingLoadId) {
+      activeTargetRef.current = { loadId: trip.trackingLoadId, stopId: trip.trackingStopId || null };
+      setActiveLoadId(trip.trackingLoadId);
+      setActiveStopId(trip.trackingStopId || null);
+      setTrackingMilesBuffer(trip.trackingMilesBuffer || 0);
+      setTrackingNightMilesBuffer(trip.trackingNightMilesBuffer || 0);
+      if (trip.trackingLastLocation) {
+        setLastCoords(trip.trackingLastLocation);
+      }
+      setShowStopTracker(true);
+      const snapshot: PersistedTrackingState = {
+        tripId: trip.id,
+        activeLoadId: trip.trackingLoadId,
+        activeStopId: trip.trackingStopId || null,
+        trackingMilesBuffer: trip.trackingMilesBuffer || 0,
+        trackingNightMilesBuffer: trip.trackingNightMilesBuffer || 0,
+        lastCoords: trip.trackingLastLocation || null,
+        updatedAt: Date.now(),
+      };
+      trackingSnapshotRef.current = snapshot;
+      writePersistedTrackingState(snapshot);
+      startTracking();
+    }
+    restoredTrackingRef.current = true;
+  }, [trip, settings, readPersistedTrackingState, writePersistedTrackingState, startTracking]);
+
+  useEffect(() => {
+    if (!trip) return;
+    const interval = setInterval(() => {
+      const snapshot = trackingSnapshotRef.current;
+      if (!snapshot || !snapshot.activeLoadId) return;
+      const currentTripId = tripIdRef.current;
+      if (!currentTripId) return;
+      updateTrip(currentTripId, {
+        trackingActive: true,
+        trackingMilesBuffer: snapshot.trackingMilesBuffer,
+        trackingNightMilesBuffer: snapshot.trackingNightMilesBuffer,
+        trackingLastLocation: snapshot.lastCoords || null,
+        trackingLoadId: snapshot.activeLoadId,
+        trackingStopId: snapshot.activeStopId || null,
+      })
+        .then(() => {
+          setTrip((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  trackingActive: true,
+                  trackingMilesBuffer: snapshot.trackingMilesBuffer,
+                  trackingNightMilesBuffer: snapshot.trackingNightMilesBuffer,
+                  trackingLastLocation: snapshot.lastCoords || null,
+                  trackingLoadId: snapshot.activeLoadId,
+                  trackingStopId: snapshot.activeStopId || null,
+                }
+              : prev
+          );
+        })
+        .catch((error) => console.error('Error syncing tracking state:', error));
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [trip?.id]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible' || !activeTargetRef.current.loadId) {
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setLastCoords((prev) => {
+            if (prev) {
+              const delta = haversineMiles(prev, coords);
+              if (delta > 0) {
+                setTrackingMilesBuffer((m) => m + delta);
+                const activeSettings = settingsRef.current;
+                if (activeSettings && isInNightWindow(new Date(), activeSettings)) {
+                  setTrackingNightMilesBuffer((m) => m + delta);
+                }
+              }
+            }
+            return coords;
+          });
+        },
+        (err) => {
+          console.error('Visibility geolocation error:', err);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   const getFirstUnarrivedStopId = (load: Load): string | null => {
     const stop = load.stops.find(s => !('arrivedAt' in s) || !s.arrivedAt);
@@ -148,11 +361,37 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setLastCoords(coords);
       setTrackingMilesBuffer(0);
       setTrackingNightMilesBuffer(0);
+      activeTargetRef.current = { loadId, stopId };
       setActiveLoadId(loadId);
       setActiveStopId(stopId);
-      startTracking();
       setShowStopTracker(true);
-    } catch {
+      startTracking();
+
+      const trackingPayload: Partial<Trip> = {
+        trackingActive: true,
+        trackingLastLocation: coords,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLoadId: loadId,
+        trackingStopId: stopId,
+      };
+
+      await updateTrip(trip.id, trackingPayload);
+      setTrip((prev) => (prev ? { ...prev, ...trackingPayload } : prev));
+
+      const snapshot: PersistedTrackingState = {
+        tripId: trip.id,
+        activeLoadId: loadId,
+        activeStopId: stopId,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        lastCoords: coords,
+        updatedAt: Date.now(),
+      };
+      trackingSnapshotRef.current = snapshot;
+      writePersistedTrackingState(snapshot);
+    } catch (error) {
+      console.error('Failed to start tracking to stop:', error);
       alert('Location permission is required to start tracking.');
     }
   };
@@ -165,11 +404,37 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setLastCoords(coords);
       setTrackingMilesBuffer(0);
       setTrackingNightMilesBuffer(0);
+      activeTargetRef.current = { loadId, stopId: 'dc' };
       setActiveLoadId(loadId);
       setActiveStopId('dc');
       startTracking();
       setShowStopTracker(true);
-    } catch {
+
+      const trackingPayload: Partial<Trip> = {
+        trackingActive: true,
+        trackingLastLocation: coords,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLoadId: loadId,
+        trackingStopId: 'dc',
+      };
+
+      await updateTrip(trip.id, trackingPayload);
+      setTrip((prev) => (prev ? { ...prev, ...trackingPayload } : prev));
+
+      const snapshot: PersistedTrackingState = {
+        tripId: trip.id,
+        activeLoadId: loadId,
+        activeStopId: 'dc',
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        lastCoords: coords,
+        updatedAt: Date.now(),
+      };
+      trackingSnapshotRef.current = snapshot;
+      writePersistedTrackingState(snapshot);
+    } catch (error) {
+      console.error('Failed to start tracking to DC:', error);
       alert('Location permission is required to start tracking.');
     }
   };
@@ -197,13 +462,38 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         currentMileage: newCurrentMileage,
         nightMiles: newNightMiles,
         totalPay,
+        trackingActive: false,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLastLocation: null,
+        trackingLoadId: null,
+        trackingStopId: null,
       });
-      setTrip({ ...trip, loads: updatedLoads, currentMileage: newCurrentMileage, nightMiles: newNightMiles, totalPay });
+      setTrip((prev) =>
+        prev
+          ? {
+              ...prev,
+              loads: updatedLoads,
+              currentMileage: newCurrentMileage,
+              nightMiles: newNightMiles,
+              totalPay,
+              trackingActive: false,
+              trackingMilesBuffer: 0,
+              trackingNightMilesBuffer: 0,
+              trackingLastLocation: null,
+              trackingLoadId: null,
+              trackingStopId: null,
+            }
+          : prev
+      );
       setTrackingMilesBuffer(0);
       setTrackingNightMilesBuffer(0);
       setShowStopTracker(false);
+      activeTargetRef.current = { loadId: null, stopId: null };
       setActiveLoadId(null);
       setActiveStopId(null);
+      trackingSnapshotRef.current = null;
+      writePersistedTrackingState(null);
       hapticSuccess();
     } catch (e) {
       console.error(e);
@@ -264,21 +554,35 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         trackingActive: false,
         trackingMilesBuffer: 0,
         trackingNightMilesBuffer: 0,
-        trackingLastLocation: null as any
+        trackingLastLocation: null,
+        trackingLoadId: null,
+        trackingStopId: null,
       });
-      setTrip({
-        ...trip,
-        loads: updatedLoads,
-        currentMileage: newCurrentMileage,
-        nightMiles: newNightMiles,
-        totalPay,
-        trackingActive: false,
-        trackingMilesBuffer: 0,
-        trackingNightMilesBuffer: 0,
-        trackingLastLocation: undefined
-      });
+      setTrip((prev) =>
+        prev
+          ? {
+              ...prev,
+              loads: updatedLoads,
+              currentMileage: newCurrentMileage,
+              nightMiles: newNightMiles,
+              totalPay,
+              trackingActive: false,
+              trackingMilesBuffer: 0,
+              trackingNightMilesBuffer: 0,
+              trackingLastLocation: null,
+              trackingLoadId: null,
+              trackingStopId: null,
+            }
+          : prev
+      );
       setTrackingMilesBuffer(0);
       setTrackingNightMilesBuffer(0);
+      setShowStopTracker(false);
+      activeTargetRef.current = { loadId: null, stopId: null };
+      setActiveLoadId(null);
+      setActiveStopId(null);
+      trackingSnapshotRef.current = null;
+      writePersistedTrackingState(null);
       hapticSuccess();
       playArrive();
       setShowArrivedOverlay({ type: 'stop' });
@@ -381,6 +685,12 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
     try {
       // Stop live tracking if active, and add buffered miles
       stopTracking();
+      setShowStopTracker(false);
+      activeTargetRef.current = { loadId: null, stopId: null };
+      setActiveLoadId(null);
+      setActiveStopId(null);
+      trackingSnapshotRef.current = null;
+      writePersistedTrackingState(null);
       const bufferMiles = trackingMilesBuffer;
       const bufferNight = trackingNightMilesBuffer;
 
@@ -412,7 +722,15 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         nightMiles,
         isFinished: true,
         finishedAt: Timestamp.now(),
+        trackingActive: false,
+        trackingMilesBuffer: 0,
+        trackingNightMilesBuffer: 0,
+        trackingLastLocation: null,
+        trackingLoadId: null,
+        trackingStopId: null,
       });
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
       hapticSuccess();
       alert(`Trip completed! Final pay: ${formatCurrency(totalPay)}`);
       onFinishTrip();
@@ -503,8 +821,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
   if (loading || !trip || !settings) {
     return (
-      <div className="h-full flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="h-full flex items-center justify-center ntransit-shell">
+        <div className="text-white/60 tracking-[0.3em] uppercase text-xs">Loading</div>
       </div>
     );
   }
@@ -513,7 +831,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const formatMiles = (n: number) => Number.isFinite(n) ? (Math.floor(n * 100) / 100).toFixed(2) : '0.00';
 
   return (
-    <div className="h-full flex flex-col bg-black">
+    <div className="h-full flex flex-col ntransit-shell text-white">
       {/* Top Bar */}
       <div className="flex-shrink-0 safe-top">
         <div className="px-4 pt-2 pb-3">
@@ -664,7 +982,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 z-50 safe-bottom"
+              className="fixed inset-0 bg-[#01060f]/90 backdrop-blur-2xl z-50 safe-bottom"
             onClick={() => {}}
           >
             <motion.div
@@ -673,42 +991,46 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
+                className="absolute bottom-0 left-0 right-0 glass rounded-t-[32px] p-6 border border-white/5"
             >
               <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-2xl font-bold text-white">
-                  Stop Tracker
-                </h2>
-                <div className="text-white/70 text-sm">
-                  {isInNightWindow(new Date(), settings!) ? '🌙 Night' : '☀️ Day'}
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">Segment</p>
+                    <h2 className="text-2xl font-semibold text-white">
+                      Stop Tracker
+                    </h2>
                 </div>
+                  <div className="text-white/70 text-sm border border-white/10 rounded-full px-3 py-1 flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-cyan-300 animate-pulse" />
+                    {isInNightWindow(new Date(), settings!) ? 'Night Window' : 'Day Window'}
+                  </div>
               </div>
-              <div className="glass rounded-2xl p-4 mb-3">
+                <div className="glass rounded-2xl p-4 mb-3 border border-white/5">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-white/60 text-xs mb-1">Segment Miles</p>
-                    <p className="text-xl font-bold text-white">{trackingMilesBuffer.toFixed(2)}</p>
+                      <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-1">Segment Miles</p>
+                      <p className="text-2xl font-semibold text-white">{trackingMilesBuffer.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-white/60 text-xs mb-1">Trip Miles</p>
-                    <p className="text-xl font-bold text-white">{(trip!.currentMileage - trip!.startMileage + trackingMilesBuffer).toFixed(2)}</p>
+                      <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-1">Trip Miles</p>
+                      <p className="text-2xl font-semibold text-white">{(trip!.currentMileage - trip!.startMileage + trackingMilesBuffer).toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-white/60 text-xs mb-1">Segment Night Miles</p>
-                    <p className="text-xl font-bold text-white">{trackingNightMilesBuffer.toFixed(2)}</p>
+                      <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-1">Night Segment</p>
+                      <p className="text-2xl font-semibold text-white">{trackingNightMilesBuffer.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-white/60 text-xs mb-1">Night CPM</p>
-                    <p className="text-xl font-bold text-white">
+                      <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-1">Night CPM</p>
+                      <p className="text-2xl font-semibold text-white">
                       {settings.nightPayEnabled ? `$${(settings.cpm + (settings.nightExtraCpm || 0)).toFixed(2)}` : `$${settings.cpm.toFixed(2)}`}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="glass rounded-2xl p-4 mb-4">
-                <p className="text-white/60 text-xs mb-1">Projected Total Pay</p>
-                <div className="text-3xl font-bold text-white">
+                <div className="glass rounded-2xl p-4 mb-4 border border-white/5">
+                  <p className="text-white/60 text-xs uppercase tracking-[0.3em] mb-1">Projected Total Pay</p>
+                  <div className="text-3xl font-semibold text-white">
                   {formatCurrency(
                     calculateTripPay(
                       (trip!.currentMileage + trackingMilesBuffer) - trip!.startMileage,
@@ -731,7 +1053,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                     }
                     setShowStopTracker(false);
                   }}
-                  className="flex-1 rounded-xl text-white font-medium py-3.5 bg-red-600 disabled:opacity-50"
+                    className="flex-1 rounded-2xl ntransit-cta text-black/80 font-semibold py-3.5 disabled:opacity-50"
                   disabled={updating}
                 >
                   {activeStopId === 'dc' ? 'Arrived at DC' : 'Arrive at stop'}

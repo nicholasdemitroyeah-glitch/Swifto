@@ -70,11 +70,11 @@ export default function DashboardPage() {
       {/* Start Trip Modal - Bottom Sheet */}
       <AnimatePresence>
         {showStartTrip && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 safe-bottom"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[#01060f]/85 backdrop-blur-2xl z-50 safe-bottom"
             onClick={() => { hapticLight(); setShowStartTrip(false); }}
           >
             <motion.div
