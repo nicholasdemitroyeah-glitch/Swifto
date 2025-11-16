@@ -212,20 +212,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-              <label className="block text-sm font-medium text-white/90 mb-3">Pay Per Stop ($)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60">$</span>
-                <input
-                  type="number"
-                  value={settings.payPerStop || ''}
-                  onChange={(e) => setSettings({ ...settings, payPerStop: parseFloat(e.target.value) || 0 })}
-                  className="w-full pl-10 pr-4 py-4 glass rounded-xl border border-white/10 focus:border-pink-500 focus:outline-none text-white"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  style={{ fontSize: '17px' }}
-                />
-              </div>
             </div>
 
             <motion.button
@@ -236,17 +222,16 @@ export default function SettingsPage() {
               style={{ fontSize: '17px', fontWeight: 600 }}
             >
               {saving ? (
-                <>
+                <span className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Saving...
-                </>
+                </span>
               ) : (
                 'Save Settings'
               )}
             </motion.button>
           </div>
         </div>
-      </div>
     </div>
   );
 }
