@@ -11,6 +11,7 @@ import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/hap
 import { initSounds, playClick, playArrive } from '@/lib/sounds';
 import FullScreenTracker from '@/components/tracking/FullScreenTracker';
 import ArrivalOverlay from '@/components/ui/ArrivalOverlay';
+import LoadStopsScreen from '@/components/loads/LoadStopsScreen';
 import { requestGeoPermission } from '@/lib/permissions';
 
 interface TripPageProps {
@@ -509,6 +510,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   }
 
   const mileage = trip.currentMileage - trip.startMileage;
+  const formatMiles = (n: number) => Number.isFinite(n) ? (Math.floor(n * 100) / 100).toFixed(2) : '0.00';
 
   return (
     <div className="h-full flex flex-col bg-black">
@@ -550,7 +552,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
               </div>
               <div className="text-center">
                 <p className="text-white/50 text-xs">Trip</p>
-                <p className="text-sm font-bold text-white">{mileage.toLocaleString()}</p>
+                <p className="text-sm font-bold text-white">{formatMiles(mileage)}</p>
               </div>
             </div>
             <div className="flex gap-2 mt-3">
@@ -718,68 +720,14 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             const allStopsArrived = !firstUnarrivedId;
             const canBegin = !allStopsArrived && !load.startLocation;
             return (
-              <div className="px-4 pb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => { setScreen('loads'); playClick(); }}
-                    className="w-10 h-10 glass rounded-xl flex items-center justify-center text-white/90"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </motion.button>
-                  <h3 className="text-base font-semibold text-white">Load {trip.loads.findIndex(l => l.id === openedLoadId) + 1}</h3>
-                  <div className="w-10" />
-                </div>
-                {canBegin && (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => { handleBeginLoad(load.id); playClick(); }}
-                    className="w-full rounded-xl px-3 py-3 text-white text-sm font-medium bg-blue-600 mb-2"
-                  >
-                    Begin Load
-                  </motion.button>
-                )}
-                <div className="space-y-2">
-                  {load.stops.map((stop, i) => {
-                    const isActive = firstUnarrivedId === stop.id && !stop.arrivedAt;
-                    const isUpcoming = !stop.arrivedAt && !isActive;
-                    return (
-                      <div key={stop.id} className={`relative glass rounded-xl px-3 py-3 flex items-center justify-between ${isUpcoming ? 'opacity-60' : ''}`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs ${isActive ? 'text-blue-300' : 'text-white/80'}`}>Stop {i + 1}</span>
-                          {stop.arrivedAt && <span className="text-green-400 text-xs">Arrived</span>}
-                          {isActive && <span className="text-blue-400 text-xs">Active</span>}
-                        </div>
-                        {isActive && (
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => { handleDepartToStop(load.id, stop.id); setActiveLoadId(load.id); setActiveStopId(stop.id); setShowStopTracker(true); playClick(); }}
-                            className="px-3 py-2 rounded-lg text-white text-xs font-medium bg-blue-600"
-                          >
-                            Depart To Stop
-                          </motion.button>
-                        )}
-                        {isUpcoming && (
-                          <span className="absolute inset-0 grid place-items-center text-white/60 text-[11px]">Upcoming Stop</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {!trip.isFinished && allStopsArrived && !load.finishedAt && (
-                  <div className="mt-3">
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => { handleDepartToDC(load.id); setActiveLoadId(load.id); setActiveStopId('dc'); setShowStopTracker(true); playClick(); }}
-                      className="w-full rounded-xl px-3 py-3 text-white text-sm font-medium bg-blue-600"
-                    >
-                      Head Back To DC
-                    </motion.button>
-                  </div>
-                )}
-              </div>
+              <LoadStopsScreen
+                load={load}
+                loadIndex={trip.loads.findIndex(l => l.id === openedLoadId)}
+                getFirstUnarrivedStopId={getFirstUnarrivedStopId}
+                onBack={() => { setScreen('loads'); }}
+                onDepartToStop={(stopId) => { handleDepartToStop(load.id, stopId); setActiveLoadId(load.id); setActiveStopId(stopId); setShowStopTracker(true); }}
+                onDepartToDC={() => { handleDepartToDC(load.id); setActiveLoadId(load.id); setActiveStopId('dc'); setShowStopTracker(true); }}
+              />
             );
           })()}
 
