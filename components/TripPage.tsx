@@ -9,6 +9,9 @@ import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 import { initSounds, playClick, playArrive } from '@/lib/sounds';
+import FullScreenTracker from '@/components/tracking/FullScreenTracker';
+import ArrivalOverlay from '@/components/ui/ArrivalOverlay';
+import { requestGeoPermission } from '@/lib/permissions';
 
 interface TripPageProps {
   tripId: string;
@@ -139,9 +142,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const handleDepartToStop = async (loadId: string, stopId: string) => {
     if (!trip) return;
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-      });
+      const pos = await requestGeoPermission();
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setLastCoords(coords);
       setTrackingMilesBuffer(0);
@@ -158,9 +159,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const handleDepartToDC = async (loadId: string) => {
     if (!trip) return;
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-      });
+      const pos = await requestGeoPermission();
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setLastCoords(coords);
       setTrackingMilesBuffer(0);
@@ -179,9 +178,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
     setUpdating(true);
     try {
       stopTracking();
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-      });
+      const pos = await requestGeoPermission();
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
 
       const bufferMiles = trackingMilesBuffer;
@@ -219,9 +216,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const handleDepartStop = async (loadId: string) => {
     if (!trip) return;
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-      });
+      const pos = await requestGeoPermission();
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setLastCoords(coords);
       setTrackingMilesBuffer(0);
@@ -284,6 +279,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setTrackingMilesBuffer(0);
       setTrackingNightMilesBuffer(0);
       hapticSuccess();
+      playArrive();
+      setShowArrivedOverlay({ type: 'stop' });
     } catch (e) {
       console.error(e);
       alert('Failed to mark arrival. Please try again.');
@@ -324,6 +321,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setLoadType('dry');
       setShowAddLoad(false);
       hapticSuccess();
+      playArrive();
+      setShowArrivedOverlay({ type: 'dc' });
     } catch (error) {
       console.error('Error adding load:', error);
       alert('Failed to add load. Please try again.');
