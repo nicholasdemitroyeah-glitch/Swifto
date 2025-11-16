@@ -8,6 +8,7 @@ let introAudio: HTMLAudioElement | null = null;
 
 export function initSounds() {
   if (typeof window === 'undefined') return;
+  // Served from Next.js public/ directory
   if (!clickAudio) clickAudio = new Audio('/resources/UI_AllButtonSounds.mp3');
   if (!arriveAudio) arriveAudio = new Audio('/resources/UI_ArriveAtStopSound.mp3');
   if (!addLoadAudio) addLoadAudio = new Audio('/resources/UI_AddLoadSound.mp3');

@@ -612,7 +612,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                   <motion.div
                     key={load.id}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => { setOpenedLoadId(load.id); setScreen('load-detail'); }}
+                    onClick={() => { playClick(); setOpenedLoadId(load.id); setScreen('load-detail'); }}
                     className={`rounded-2xl p-4 border ${completed ? 'border-green-500/30 bg-green-500/10' : 'border-white/10 bg-white/5'} active:opacity-80`}
                   >
                     <div className="flex items-center justify-between">

@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Load } from '@/lib/db';
+import { playClick } from '@/lib/sounds';
 
 interface LoadStopsScreenProps {
   load: Load;
@@ -29,7 +30,7 @@ export default function LoadStopsScreen({
       <div className="safe-top px-4 py-3 flex items-center justify-between">
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={onBack}
+          onClick={() => { playClick(); onBack(); }}
           className="w-10 h-10 glass rounded-xl flex items-center justify-center text-white/90"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +76,7 @@ export default function LoadStopsScreen({
                   {isActive && (
                     <motion.button
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => onDepartToStop(stop.id)}
+                      onClick={() => { playClick(); onDepartToStop(stop.id); }}
                       className="rounded-full bg-blue-600 text-white px-5 py-3 text-sm font-semibold"
                     >
                       Depart To Stop
@@ -88,6 +89,16 @@ export default function LoadStopsScreen({
                   <div className="text-white text-lg font-semibold">Upcoming Stop</div>
                 </div>
               )}
+              {/* Dotted connector between cards */}
+              {idx < load.stops.length - 1 && (
+                <div className="flex items-center justify-center py-3">
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-white/60" />
+                    <span className="w-1 h-1 rounded-full bg-white/60" />
+                    <span className="w-1 h-1 rounded-full bg-white/60" />
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -97,7 +108,7 @@ export default function LoadStopsScreen({
       <div className="px-4 pb-6">
         <motion.button
           whileTap={{ scale: 0.98 }}
-          onClick={onDepartToDC}
+          onClick={() => { playClick(); onDepartToDC(); }}
           disabled={!allDone || !!load.finishedAt}
           className={`w-full rounded-2xl py-4 text-base font-semibold ${
             allDone && !load.finishedAt ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/30'
