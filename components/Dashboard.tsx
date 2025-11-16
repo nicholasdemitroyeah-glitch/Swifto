@@ -151,7 +151,7 @@ export default function Dashboard({ onStartNewTrip, onEditTrip }: DashboardProps
               </div>
             </div>
               {chartData.length > 0 && (
-                <div className="h-24 bg-white/5 rounded-2xl px-3 py-2">
+                <div className="h-12 bg-white/5 rounded-2xl px-3 py-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <Line type="monotone" dataKey="earnings" stroke="#48e0ff" strokeWidth={2} dot={false} />
