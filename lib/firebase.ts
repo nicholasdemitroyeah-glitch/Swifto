@@ -45,43 +45,97 @@ const envFirebaseConfig: FirebaseConfigShape = {
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
-const runtimeFirebaseConfig: FirebaseConfigShape | undefined =
-  typeof window !== 'undefined' ? window.__FIREBASE_CONFIG__ : undefined;
+const getRuntimeConfig = (): FirebaseConfigShape | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  return window.__FIREBASE_CONFIG__;
+};
 
-const normalizedEnvConfig = normalizeConfig(envFirebaseConfig);
-const normalizedRuntimeConfig = normalizedEnvConfig ? null : normalizeConfig(runtimeFirebaseConfig);
-const firebaseConfig = normalizedEnvConfig ?? normalizedRuntimeConfig ?? null;
+const getFirebaseConfig = (): FirebaseOptions | null => {
+  const normalizedEnvConfig = normalizeConfig(envFirebaseConfig);
+  if (normalizedEnvConfig) return normalizedEnvConfig;
+  
+  const runtimeConfig = getRuntimeConfig();
+  const normalizedRuntimeConfig = normalizeConfig(runtimeConfig);
+  return normalizedRuntimeConfig;
+};
 
 const requiredConfigKeys: Array<keyof FirebaseOptions> = ['apiKey', 'authDomain', 'projectId', 'appId'];
 const missingEnvKeys = requiredConfigKeys.filter((key) => !isNonEmptyString(envFirebaseConfig[key]));
-const hasValidFirebaseConfig = Boolean(firebaseConfig);
 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let initializationAttempted = false;
 
-if (typeof window !== 'undefined' && hasValidFirebaseConfig && firebaseConfig) {
-  if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApps()[0];
+const initializeFirebase = (): void => {
+  if (initializationAttempted) return;
+  initializationAttempted = true;
+
+  const firebaseConfig = getFirebaseConfig();
+  const hasValidFirebaseConfig = Boolean(firebaseConfig);
+
+  if (typeof window !== 'undefined' && hasValidFirebaseConfig && firebaseConfig) {
+    try {
+      if (!getApps().length) {
+        app = initializeApp(firebaseConfig);
+      } else {
+        app = getApps()[0];
+      }
+      auth = getAuth(app);
+      db = getFirestore(app);
+    } catch (error) {
+      console.error('Failed to initialize Firebase:', error);
+    }
+  } else if (typeof window !== 'undefined' && !hasValidFirebaseConfig) {
+    const hint =
+      missingEnvKeys.length > 0
+        ? `Missing environment keys: ${missingEnvKeys.join(', ')}.`
+        : 'Provide config via NEXT_PUBLIC_FIREBASE_* env vars or /public/firebase-config.js.';
+    console.warn(
+      'Firebase config missing. Authentication and Firestore features are disabled until credentials are provided. ' +
+        hint
+    );
   }
-  auth = getAuth(app);
-  db = getFirestore(app);
-} else if (typeof window !== 'undefined' && !hasValidFirebaseConfig) {
-  const hint =
-    missingEnvKeys.length > 0
-      ? `Missing environment keys: ${missingEnvKeys.join(', ')}.`
-      : 'Provide config via NEXT_PUBLIC_FIREBASE_* env vars or /public/firebase-config.js.';
-  console.warn(
-    'Firebase config missing. Authentication and Firestore features are disabled until credentials are provided. ' +
-      hint
-  );
+};
+
+// Initialize immediately if config is available (from env vars)
+if (typeof window !== 'undefined') {
+  const envConfig = normalizeConfig(envFirebaseConfig);
+  if (envConfig) {
+    initializeFirebase();
+  } else {
+    // Wait for runtime config script to load
+    const tryInit = () => {
+      const config = getFirebaseConfig();
+      if (config) {
+        initializeFirebase();
+      }
+    };
+
+    // Listen for config loaded event
+    window.addEventListener('firebase-config-loaded', tryInit);
+
+    // Also try on DOMContentLoaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(tryInit, 100);
+      });
+    } else {
+      // DOM already loaded, check immediately and retry if needed
+      setTimeout(tryInit, 100);
+      // Also retry after a longer delay in case script loads late
+      setTimeout(tryInit, 1000);
+    }
+  }
 }
 
-export { auth, db };
+export { auth, db, initializeFirebase };
 export default app;
-export const isFirebaseConfigured = hasValidFirebaseConfig;
+export const isFirebaseConfigured = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const config = getFirebaseConfig();
+  return Boolean(config);
+};
 
 declare global {
   interface Window {

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { signInWithGoogle, authError } = useAuth();
   const [localError, setLocalError] = useState<string | null>(null);
   const combinedError = localError || authError;
-  const signInDisabled = !isFirebaseConfigured;
+  const signInDisabled = !isFirebaseConfigured();
 
   const handleSignIn = async () => {
     if (signInDisabled) return;
