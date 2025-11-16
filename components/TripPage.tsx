@@ -281,6 +281,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       hapticSuccess();
       playArrive();
       setShowArrivedOverlay({ type: 'stop' });
+      setTimeout(() => setShowArrivedOverlay(null), 1500);
     } catch (e) {
       console.error(e);
       alert('Failed to mark arrival. Please try again.');
@@ -323,6 +324,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       hapticSuccess();
       playArrive();
       setShowArrivedOverlay({ type: 'dc' });
+      setTimeout(() => setShowArrivedOverlay(null), 1500);
     } catch (error) {
       console.error('Error adding load:', error);
       alert('Failed to add load. Please try again.');
