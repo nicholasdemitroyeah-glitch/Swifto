@@ -605,109 +605,32 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             </div>
           ) : (
             <div className="space-y-2">
-                      {trip.loads.map((load, index) => {
-                        const firstUnarrivedId = getFirstUnarrivedStopId(load);
-                        const allStopsArrived = !firstUnarrivedId;
-                        const canBegin = !allStopsArrived && !load.startLocation;
-                        return (
-                <div key={load.id} className="glass rounded-2xl p-3.5">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-white">Load {index + 1}</h3>
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${load.loadType === 'wet' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                        {load.loadType === 'wet' ? '💧' : '📦'}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-white/10 text-white/90">
-                        {load.stops.length} stops
-                      </span>
-                    </div>
-                    {!trip.isFinished && (
-                      <div className="flex gap-1">
-                                {canBegin && (
-                                  <motion.button
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleBeginLoad(load.id)}
-                                    className="px-3 py-2 rounded-lg text-white text-xs font-medium bg-blue-600"
-                                  >
-                                    Begin Load
-                                  </motion.button>
-                                )}
-                        <motion.button
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => { hapticLight(); setEditStops(load.stops.length.toString()); setShowEditLoad(load.id); }}
-                          className="p-2 glass rounded-lg text-white/90"
-                        >
-                          ✏️
-                        </motion.button>
-                        <motion.button
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleDeleteLoad(load.id)}
-                          className="p-2 glass rounded-lg text-red-400"
-                        >
-                          🗑️
-                        </motion.button>
+              {trip.loads.map((load, index) => {
+                const firstUnarrivedId = getFirstUnarrivedStopId(load);
+                const completed = !!load.finishedAt;
+                return (
+                  <motion.div
+                    key={load.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { setOpenedLoadId(load.id); setScreen('load-detail'); }}
+                    className={`rounded-2xl p-4 border ${completed ? 'border-green-500/30 bg-green-500/10' : 'border-white/10 bg-white/5'} active:opacity-80`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-white">Load {index + 1}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${load.loadType === 'wet' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                          {load.loadType === 'wet' ? '💧' : '📦'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-white/10 text-white/90">
+                          {load.stops.length} stops
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  {load.stops.length > 0 && (
-                    <div className="space-y-1 mt-2 pt-2 border-t border-white/10">
-                      {load.stops.map((stop, stopIndex) => (
-                        <div key={stop.id} className="flex items-center justify-between glass rounded-lg px-2.5 py-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white/80 text-xs">Stop {stopIndex + 1}</span>
-                            {stop.arrivedAt && (
-                              <span className="text-green-400 text-xs">Arrived</span>
-                            )}
-                          </div>
-                          {!trip.isFinished && (
-                            <div className="flex items-center gap-2">
-                              {!stop.arrivedAt ? (
-                                <>
-                                  {firstUnarrivedId === stop.id && (
-                                    <motion.button
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() => handleDepartToStop(load.id, stop.id)}
-                                      className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
-                                    >
-                                      Depart to stop
-                                    </motion.button>
-                                  )}
-                                  <motion.button
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleArriveStop(load.id, stop.id)}
-                                    className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
-                                  >
-                                    Arrived
-                                  </motion.button>
-                                </>
-                              ) : (
-                                <motion.button
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => handleDeleteStop(load.id, stop.id)}
-                                  className="text-red-400 text-xs"
-                                >
-                                  ×
-                                </motion.button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${completed ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {completed ? 'Complete' : firstUnarrivedId ? 'In Progress' : 'Ready'}
+                      </span>
                     </div>
-                  )}
-                          {!trip.isFinished && allStopsArrived && !load.finishedAt && (
-                            <div className="mt-2">
-                              <motion.button
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => handleDepartToDC(load.id)}
-                                className="w-full rounded-xl px-3 py-2.5 text-white text-sm font-medium bg-blue-600"
-                              >
-                                Head Back to DC
-                              </motion.button>
-                            </div>
-                          )}
-                </div>
-                        );
+                  </motion.div>
+                );
               })}
             </div>
           )}
