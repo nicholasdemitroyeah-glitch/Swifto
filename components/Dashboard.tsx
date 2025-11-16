@@ -100,11 +100,11 @@ export default function Dashboard({ onStartNewTrip, onEditTrip }: DashboardProps
       {/* Top Bar - Fixed */}
       <div className="flex-shrink-0 safe-top">
         <div className="px-4 pt-2 pb-3">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex-1 flex justify-center">
-              <Image src={swiftLogo} alt="Swift" style={{ objectFit: 'contain' }} width={120} height={36} priority />
+              <Image src={swiftLogo} alt="Swift" style={{ objectFit: 'contain' }} width={180} height={48} priority />
             </div>
-            <div className="flex gap-2 ml-2">
+            <div className="flex gap-2 ml-3">
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => { hapticLight(); router.push('/settings'); }}

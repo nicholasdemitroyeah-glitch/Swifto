@@ -33,6 +33,9 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const [trackingMilesBuffer, setTrackingMilesBuffer] = useState(0);
   const [trackingNightMilesBuffer, setTrackingNightMilesBuffer] = useState(0);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [showStopTracker, setShowStopTracker] = useState(false);
+  const [activeLoadId, setActiveLoadId] = useState<string | null>(null);
+  const [activeStopId, setActiveStopId] = useState<string | null>(null); // 'dc' indicates return to DC
 
   useEffect(() => {
     if (user) {
@@ -101,6 +104,108 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       setWatchId(null);
     }
     setLastCoords(null);
+  };
+
+  const getFirstUnarrivedStopId = (load: Load): string | null => {
+    const stop = load.stops.find(s => !('arrivedAt' in s) || !s.arrivedAt);
+    return stop ? stop.id : null;
+  };
+
+  const handleBeginLoad = async (loadId: string) => {
+    if (!trip) return;
+    // Mark load started by setting startLocation if missing
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const updatedLoads = trip.loads.map(l => l.id === loadId ? { ...l, startLocation: l.startLocation ?? coords } : l);
+      await updateTrip(trip.id, { loads: updatedLoads });
+      setTrip({ ...trip, loads: updatedLoads });
+      // Prepare next stop UI (will show Depart button on that stop)
+    } catch {
+      // Ignore if user denies permission; they can depart later
+    }
+  };
+
+  const handleDepartToStop = async (loadId: string, stopId: string) => {
+    if (!trip) return;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setLastCoords(coords);
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
+      setActiveLoadId(loadId);
+      setActiveStopId(stopId);
+      startTracking();
+      setShowStopTracker(true);
+    } catch {
+      alert('Location permission is required to start tracking.');
+    }
+  };
+
+  const handleDepartToDC = async (loadId: string) => {
+    if (!trip) return;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setLastCoords(coords);
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
+      setActiveLoadId(loadId);
+      setActiveStopId('dc');
+      startTracking();
+      setShowStopTracker(true);
+    } catch {
+      alert('Location permission is required to start tracking.');
+    }
+  };
+
+  const handleArriveDc = async () => {
+    if (!trip || !settings || !activeLoadId) return;
+    setUpdating(true);
+    try {
+      stopTracking();
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+
+      const bufferMiles = trackingMilesBuffer;
+      const bufferNight = trackingNightMilesBuffer;
+
+      const newCurrentMileage = trip.currentMileage + bufferMiles;
+      const newNightMiles = (trip.nightMiles || 0) + bufferNight;
+
+      const updatedLoads = trip.loads.map(l => l.id === activeLoadId ? ({ ...l, finishedAt: Timestamp.now(), finishedLocation: coords }) : l);
+      const tripMileage = newCurrentMileage - trip.startMileage;
+      const totalPay = calculateTripPay(tripMileage, updatedLoads, settings, newNightMiles);
+
+      await updateTrip(trip.id, {
+        loads: updatedLoads,
+        currentMileage: newCurrentMileage,
+        nightMiles: newNightMiles,
+        totalPay,
+      });
+      setTrip({ ...trip, loads: updatedLoads, currentMileage: newCurrentMileage, nightMiles: newNightMiles, totalPay });
+      setTrackingMilesBuffer(0);
+      setTrackingNightMilesBuffer(0);
+      setShowStopTracker(false);
+      setActiveLoadId(null);
+      setActiveStopId(null);
+      hapticSuccess();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to mark arrival to DC. Please try again.');
+      hapticError();
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleDepartStop = async (loadId: string) => {
@@ -487,7 +592,11 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {trip.loads.map((load, index) => (
+                      {trip.loads.map((load, index) => {
+                        const firstUnarrivedId = getFirstUnarrivedStopId(load);
+                        const allStopsArrived = !firstUnarrivedId;
+                        const canBegin = !allStopsArrived && !load.startLocation;
+                        return (
                 <div key={load.id} className="glass rounded-2xl p-3.5">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -501,6 +610,15 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                     </div>
                     {!trip.isFinished && (
                       <div className="flex gap-1">
+                                {canBegin && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleBeginLoad(load.id)}
+                                    className="px-3 py-2 rounded-lg text-white text-xs font-medium bg-blue-600"
+                                  >
+                                    Begin Load
+                                  </motion.button>
+                                )}
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={() => { hapticLight(); setEditStops(load.stops.length.toString()); setShowEditLoad(load.id); }}
@@ -532,13 +650,15 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                             <div className="flex items-center gap-2">
                               {!stop.arrivedAt ? (
                                 <>
-                                  <motion.button
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleDepartStop(load.id)}
-                                    className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
-                                  >
-                                    Depart
-                                  </motion.button>
+                                  {firstUnarrivedId === stop.id && (
+                                    <motion.button
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => handleDepartToStop(load.id, stop.id)}
+                                      className="px-2.5 py-1.5 rounded-lg text-white text-xs font-medium bg-blue-600"
+                                    >
+                                      Depart to stop
+                                    </motion.button>
+                                  )}
                                   <motion.button
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => handleArriveStop(load.id, stop.id)}
@@ -562,8 +682,20 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                       ))}
                     </div>
                   )}
+                          {!trip.isFinished && allStopsArrived && !load.finishedAt && (
+                            <div className="mt-2">
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => handleDepartToDC(load.id)}
+                                className="w-full rounded-xl px-3 py-2.5 text-white text-sm font-medium bg-blue-600"
+                              >
+                                Head Back to DC
+                              </motion.button>
+                            </div>
+                          )}
                 </div>
-              ))}
+                        );
+              })}
             </div>
           )}
         </div>
@@ -571,6 +703,87 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
       {/* Bottom Sheet Modals */}
       <AnimatePresence>
+        {showStopTracker && settings && trip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 z-50 safe-bottom"
+            onClick={() => {}}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-0 left-0 right-0 glass rounded-t-3xl p-6"
+            >
+              <div className="w-12 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-bold text-white">
+                  Stop Tracker
+                </h2>
+                <div className="text-white/70 text-sm">
+                  {isInNightWindow(new Date(), settings) ? '🌙 Night' : '☀️ Day'}
+                </div>
+              </div>
+              <div className="glass rounded-2xl p-4 mb-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-white/60 text-xs mb-1">Segment Miles</p>
+                    <p className="text-xl font-bold text-white">{trackingMilesBuffer.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-xs mb-1">Trip Miles</p>
+                    <p className="text-xl font-bold text-white">{(trip.currentMileage - trip.startMileage + trackingMilesBuffer).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-xs mb-1">Segment Night Miles</p>
+                    <p className="text-xl font-bold text-white">{trackingNightMilesBuffer.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-xs mb-1">Night CPM</p>
+                    <p className="text-xl font-bold text-white">
+                      {settings.nightPayEnabled ? `$${(settings.cpm + (settings.nightExtraCpm || 0)).toFixed(2)}` : `$${settings.cpm.toFixed(2)}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="glass rounded-2xl p-4 mb-4">
+                <p className="text-white/60 text-xs mb-1">Projected Total Pay</p>
+                <div className="text-3xl font-bold text-white">
+                  {formatCurrency(
+                    calculateTripPay(
+                      (trip.currentMileage + trackingMilesBuffer) - trip.startMileage,
+                      trip.loads,
+                      settings,
+                      (trip.nightMiles || 0) + trackingNightMilesBuffer
+                    )
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    // Arrive at current target (stop or DC)
+                    if (activeStopId === 'dc') {
+                      handleArriveDc();
+                    } else if (activeLoadId && activeStopId) {
+                      handleArriveStop(activeLoadId, activeStopId);
+                    }
+                    setShowStopTracker(false);
+                  }}
+                  className="flex-1 rounded-xl text-white font-medium py-3.5 bg-red-600 disabled:opacity-50"
+                  disabled={updating}
+                >
+                  {activeStopId === 'dc' ? 'Arrived at DC' : 'Arrive at stop'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
         {showAddLoad && (
           <motion.div
             initial={{ opacity: 0 }}
