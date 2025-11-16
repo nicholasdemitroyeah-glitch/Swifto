@@ -18,19 +18,6 @@ export default function RootLayout({
         <Script 
           src="/firebase-config.js" 
           strategy="beforeInteractive"
-          onLoad={() => {
-            // Trigger Firebase initialization after script loads
-            if (typeof window !== 'undefined' && window.__FIREBASE_CONFIG__) {
-              // Small delay to ensure config is set
-              setTimeout(() => {
-                const event = new Event('firebase-config-loaded');
-                window.dispatchEvent(event);
-              }, 50);
-            }
-          }}
-          onError={() => {
-            console.warn('firebase-config.js not found. Using environment variables if available.');
-          }}
         />
         <AuthProvider>
           {children}
