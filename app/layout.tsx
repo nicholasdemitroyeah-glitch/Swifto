@@ -1,5 +1,6 @@
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
+import Script from 'next/script';
 
 export const metadata = {
   title: 'Swift Will F*** You',
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" style={{ height: '100%' }}>
       <body style={{ height: '100%', margin: 0, padding: 0 }}>
+        <Script src="/firebase-config.js" strategy="beforeInteractive" />
         <AuthProvider>
           {children}
         </AuthProvider>
