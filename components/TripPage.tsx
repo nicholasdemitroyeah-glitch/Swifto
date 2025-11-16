@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
+import { initSounds, playClick, playArrive } from '@/lib/sounds';
 
 interface TripPageProps {
   tripId: string;
@@ -36,12 +37,19 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
   const [showStopTracker, setShowStopTracker] = useState(false);
   const [activeLoadId, setActiveLoadId] = useState<string | null>(null);
   const [activeStopId, setActiveStopId] = useState<string | null>(null); // 'dc' indicates return to DC
+  const [showArrivedOverlay, setShowArrivedOverlay] = useState<{ type: 'stop' | 'dc'; stopIndex?: number } | null>(null);
+  const [screen, setScreen] = useState<'loads' | 'load-detail'>('loads');
+  const [openedLoadId, setOpenedLoadId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       loadTrip();
     }
   }, [user, tripId]);
+
+  useEffect(() => {
+    initSounds();
+  }, []);
 
   const loadTrip = async () => {
     if (!user) return;
@@ -569,6 +577,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       {/* Scrollable Loads */}
       <div className="flex-1 scroll-area safe-left safe-right safe-bottom">
         <div className="px-4 pb-4">
+          {screen === 'loads' && (
+          <>
           <div className="flex justify-between items-center mb-3">
             <h2 className="text-lg font-bold text-white" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
               Loads
@@ -698,6 +708,80 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
               })}
             </div>
           )}
+          </>
+          )}
+
+          {screen === 'load-detail' && openedLoadId && (() => {
+            const load = trip.loads.find(l => l.id === openedLoadId)!;
+            const firstUnarrivedId = getFirstUnarrivedStopId(load);
+            const allStopsArrived = !firstUnarrivedId;
+            const canBegin = !allStopsArrived && !load.startLocation;
+            return (
+              <div className="px-4 pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => { setScreen('loads'); playClick(); }}
+                    className="w-10 h-10 glass rounded-xl flex items-center justify-center text-white/90"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </motion.button>
+                  <h3 className="text-base font-semibold text-white">Load {trip.loads.findIndex(l => l.id === openedLoadId) + 1}</h3>
+                  <div className="w-10" />
+                </div>
+                {canBegin && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => { handleBeginLoad(load.id); playClick(); }}
+                    className="w-full rounded-xl px-3 py-3 text-white text-sm font-medium bg-blue-600 mb-2"
+                  >
+                    Begin Load
+                  </motion.button>
+                )}
+                <div className="space-y-2">
+                  {load.stops.map((stop, i) => {
+                    const isActive = firstUnarrivedId === stop.id && !stop.arrivedAt;
+                    const isUpcoming = !stop.arrivedAt && !isActive;
+                    return (
+                      <div key={stop.id} className={`relative glass rounded-xl px-3 py-3 flex items-center justify-between ${isUpcoming ? 'opacity-60' : ''}`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${isActive ? 'text-blue-300' : 'text-white/80'}`}>Stop {i + 1}</span>
+                          {stop.arrivedAt && <span className="text-green-400 text-xs">Arrived</span>}
+                          {isActive && <span className="text-blue-400 text-xs">Active</span>}
+                        </div>
+                        {isActive && (
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => { handleDepartToStop(load.id, stop.id); setActiveLoadId(load.id); setActiveStopId(stop.id); setShowStopTracker(true); playClick(); }}
+                            className="px-3 py-2 rounded-lg text-white text-xs font-medium bg-blue-600"
+                          >
+                            Depart To Stop
+                          </motion.button>
+                        )}
+                        {isUpcoming && (
+                          <span className="absolute inset-0 grid place-items-center text-white/60 text-[11px]">Upcoming Stop</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {!trip.isFinished && allStopsArrived && !load.finishedAt && (
+                  <div className="mt-3">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => { handleDepartToDC(load.id); setActiveLoadId(load.id); setActiveStopId('dc'); setShowStopTracker(true); playClick(); }}
+                      className="w-full rounded-xl px-3 py-3 text-white text-sm font-medium bg-blue-600"
+                    >
+                      Head Back To DC
+                    </motion.button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         </div>
       </div>
 
@@ -725,7 +809,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                   Stop Tracker
                 </h2>
                 <div className="text-white/70 text-sm">
-                  {isInNightWindow(new Date(), settings) ? '🌙 Night' : '☀️ Day'}
+                  {isInNightWindow(new Date(), settings!) ? '🌙 Night' : '☀️ Day'}
                 </div>
               </div>
               <div className="glass rounded-2xl p-4 mb-3">
@@ -736,7 +820,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                   </div>
                   <div>
                     <p className="text-white/60 text-xs mb-1">Trip Miles</p>
-                    <p className="text-xl font-bold text-white">{(trip.currentMileage - trip.startMileage + trackingMilesBuffer).toFixed(2)}</p>
+                    <p className="text-xl font-bold text-white">{(trip!.currentMileage - trip!.startMileage + trackingMilesBuffer).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-white/60 text-xs mb-1">Segment Night Miles</p>
@@ -755,10 +839,10 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                 <div className="text-3xl font-bold text-white">
                   {formatCurrency(
                     calculateTripPay(
-                      (trip.currentMileage + trackingMilesBuffer) - trip.startMileage,
-                      trip.loads,
-                      settings,
-                      (trip.nightMiles || 0) + trackingNightMilesBuffer
+                      (trip!.currentMileage + trackingMilesBuffer) - trip!.startMileage,
+                      trip!.loads,
+                      settings!,
+                      (trip!.nightMiles || 0) + trackingNightMilesBuffer
                     )
                   )}
                 </div>
@@ -781,6 +865,28 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
                   {activeStopId === 'dc' ? 'Arrived at DC' : 'Arrive at stop'}
                 </motion.button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {showArrivedOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+              className="glass rounded-3xl px-8 py-10 text-center"
+            >
+              <div className="text-4xl mb-3">✅</div>
+              <div className="text-white text-xl font-bold mb-1">
+                {showArrivedOverlay!.type === 'dc' ? 'Arrived at DC!' : `Arrived at stop ${(((showArrivedOverlay!.stopIndex || 0) + 1))}!`}
+              </div>
+              <div className="text-white/70 text-sm">Great job. Updating your load...</div>
             </motion.div>
           </motion.div>
         )}
