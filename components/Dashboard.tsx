@@ -3,13 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getTrips, getSettings, deleteTrip, Trip, Settings } from '@/lib/db';
-import { getWeeklyEarnings, formatCurrency, formatDate, formatDateTime, isInCurrentWeek } from '@/lib/utils';
+import { getWeeklyEarnings, formatCurrency, formatDate, isInCurrentWeek } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSuccess, hapticError } from '@/lib/haptics';
-import Image from 'next/image';
-import swiftLogo from '@/resources/SWIFT.png';
 
 interface DashboardProps {
   onStartNewTrip: () => void;
@@ -89,128 +87,151 @@ export default function Dashboard({ onStartNewTrip, onEditTrip }: DashboardProps
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="h-full flex items-center justify-center ntransit-shell">
+        <div className="text-white/60 text-sm tracking-[0.35em] uppercase">Syncing</div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-black">
-      {/* Top Bar - Fixed */}
+    <div className="h-full flex flex-col ntransit-shell text-white">
       <div className="flex-shrink-0 safe-top">
-        <div className="px-4 pt-2 pb-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex-1 flex justify-center">
-              <Image src={swiftLogo} alt="Swift" style={{ objectFit: 'contain' }} width={180} height={48} priority />
+        <div className="px-5 pt-4 pb-4 space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.45em] text-white/50 mb-1" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+                N·Transit
+              </p>
+              <h1 className="text-2xl font-semibold leading-tight">Ops Dashboard</h1>
+              <p className="text-white/50 text-sm">Live fleet telemetry &amp; pay modeling</p>
             </div>
-            <div className="flex gap-2 ml-3">
+            <div className="flex gap-2">
               <motion.button
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={() => { hapticLight(); router.push('/settings'); }}
-                className="w-10 h-10 glass rounded-xl flex items-center justify-center text-white/90"
+                className="w-11 h-11 glass rounded-2xl flex items-center justify-center text-white/80 border border-white/10"
               >
                 ⚙️
               </motion.button>
               <motion.button
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={() => { hapticMedium(); signOut(); }}
-                className="px-3 h-10 glass rounded-xl text-white/90 text-sm font-medium"
+                className="px-4 h-11 glass rounded-2xl text-sm font-semibold tracking-wide"
               >
-                Out
+                Sign Out
               </motion.button>
             </div>
           </div>
 
-          {/* Earnings Card - Compact */}
-          <div className="glass rounded-2xl p-4 mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-white/60 text-xs">This Week</span>
-              <span className="text-white/40 text-xs">{formatCurrency(weeklyEarnings)}</span>
+          <div className="glass rounded-3xl p-5 space-y-5">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[0.65rem] uppercase tracking-[0.4em] text-white/50">This Week</p>
+                <p className="text-4xl font-semibold mt-2">{formatCurrency(weeklyEarnings)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-white/60 text-xs">Trips logged</p>
+                <p className="text-xl font-semibold">{sortedTrips.length}</p>
+              </div>
             </div>
-            <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
-              {formatCurrency(weeklyEarnings)}
+            <div className="grid grid-cols-3 gap-3 text-xs text-white/70">
+              <div>
+                <p className="uppercase tracking-[0.3em] text-white/40 mb-1">Active</p>
+                <p className="text-lg font-semibold">{sortedTrips.filter(t => !t.isFinished).length}</p>
+              </div>
+              <div>
+                <p className="uppercase tracking-[0.3em] text-white/40 mb-1">Loads</p>
+                <p className="text-lg font-semibold">{sortedTrips.reduce((sum, trip) => sum + trip.loads.length, 0)}</p>
+              </div>
+              <div>
+                <p className="uppercase tracking-[0.3em] text-white/40 mb-1">Night MI</p>
+                <p className="text-lg font-semibold">
+                  {sortedTrips.reduce((sum, trip) => sum + (trip.nightMiles || 0), 0).toFixed(1)}
+                </p>
+              </div>
             </div>
             {chartData.length > 0 && (
-              <div className="h-24 -mx-2">
+              <div className="h-28 bg-white/5 rounded-2xl px-3 py-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
-                    <Line type="monotone" dataKey="earnings" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                    <Tooltip 
+                    <Line type="monotone" dataKey="earnings" stroke="#48e0ff" strokeWidth={2} dot={false} />
+                    <Tooltip
                       formatter={(value: number) => formatCurrency(value)}
-                      contentStyle={{ backgroundColor: 'rgba(18, 18, 18, 0.95)', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
+                      contentStyle={{ backgroundColor: 'rgba(2, 10, 24, 0.9)', border: 'none', borderRadius: 12, color: '#fff' }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => { hapticMedium(); onStartNewTrip(); }}
+              className="w-full ntransit-cta py-3.5 flex items-center justify-center gap-3"
+            >
+              <svg className="w-5 h-5 text-black/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Start New Trip</span>
+            </motion.button>
           </div>
-
-          {/* Start Trip Button */}
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => { hapticMedium(); onStartNewTrip(); }}
-            className="w-full glass rounded-2xl px-4 py-3.5 text-white font-semibold mb-3 flex items-center justify-center gap-2"
-            style={{ fontSize: '16px', fontWeight: 600 }}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Trip
-          </motion.button>
         </div>
       </div>
 
-      {/* Scrollable Trips List */}
       <div className="flex-1 scroll-area safe-left safe-right safe-bottom">
-        <div className="px-4 pb-4">
+        <div className="px-5 pb-6">
           {sortedTrips.length === 0 ? (
-            <div className="glass rounded-2xl p-12 text-center">
-              <p className="text-white/60 text-sm">No trips yet</p>
+            <div className="glass rounded-3xl p-12 text-center text-white/60 text-sm">
+              No trips yet. Launch a trip to begin capturing stop telemetry.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {sortedTrips.map((trip) => (
                 <motion.div
                   key={trip.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="glass rounded-2xl p-3.5 active:opacity-80"
+                  className="glass rounded-3xl p-4 relative overflow-hidden border border-white/5"
                   onClick={() => { hapticLight(); router.push(`/trip?id=${trip.id}`); }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-base font-semibold text-white truncate">
-                          {formatDate(trip.createdAt?.toDate() || new Date())}
-                        </h3>
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${trip.isFinished ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                          {trip.isFinished ? 'Done' : 'Active'}
-                        </span>
-                      </div>
-                      <p className="text-white/50 text-xs">
-                        {trip.currentMileage - trip.startMileage} mi • {trip.loads.length} loads
-                      </p>
+                  <div className="absolute inset-0 opacity-30 bg-gradient-to-r from-white/10 via-transparent to-transparent pointer-events-none" />
+                  <div className="relative flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.25em] text-white/50">{formatDate(trip.createdAt?.toDate() || new Date())}</p>
+                      <p className="text-2xl font-semibold mt-1">{formatCurrency(trip.totalPay)}</p>
                     </div>
-                    <div className="text-xl font-bold text-white ml-3" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif', fontWeight: 700 }}>
-                      {formatCurrency(trip.totalPay)}
+                    <span className={`ntransit-chip ${trip.isFinished ? '!bg-green-400/10 !border-green-300/30 !text-green-200' : '!bg-cyan-400/10 !border-cyan-300/40 !text-cyan-200'}`}>
+                      {trip.isFinished ? 'Archived' : 'Active'}
+                    </span>
+                  </div>
+                  <div className="relative mt-3 grid grid-cols-3 text-xs text-white/60">
+                    <div>
+                      <p className="uppercase tracking-[0.2em] text-white/40">Trip MI</p>
+                      <p className="text-sm font-semibold">{(trip.currentMileage - trip.startMileage).toFixed(1)}</p>
+                    </div>
+                    <div>
+                      <p className="uppercase tracking-[0.2em] text-white/40">Loads</p>
+                      <p className="text-sm font-semibold">{trip.loads.length}</p>
+                    </div>
+                    <div>
+                      <p className="uppercase tracking-[0.2em] text-white/40">Night</p>
+                      <p className="text-sm font-semibold">{(trip.nightMiles || 0).toFixed(1)}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div className="relative flex gap-2 mt-3">
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={(e) => { e.stopPropagation(); hapticLight(); onEditTrip(trip.id); }}
-                      className="flex-1 glass rounded-xl px-3 py-2 text-white text-sm font-medium"
+                      className="flex-1 bg-white/10 rounded-2xl py-2 text-sm font-medium"
                     >
-                      Edit
+                      Resume
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={(e) => { e.stopPropagation(); handleDeleteTrip(trip.id); }}
                       disabled={deletingTripId === trip.id}
-                      className="px-3 py-2 glass rounded-xl text-red-400 text-sm font-medium disabled:opacity-50"
+                      className="px-4 py-2 rounded-2xl border border-white/10 text-sm text-white/70 hover:text-white disabled:opacity-40"
                     >
-                      {deletingTripId === trip.id ? '...' : '🗑️'}
+                      {deletingTripId === trip.id ? '...' : 'Delete'}
                     </motion.button>
                   </div>
                 </motion.div>

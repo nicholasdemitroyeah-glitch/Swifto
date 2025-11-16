@@ -79,14 +79,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="h-full flex items-center justify-center ntransit-shell">
+        <div className="text-white/60 tracking-[0.3em] uppercase text-xs">Loading</div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-black">
+    <div className="h-full flex flex-col ntransit-shell text-white">
       {/* Top Bar */}
       <div className="flex-shrink-0 safe-top">
         <div className="px-4 pt-2 pb-3">

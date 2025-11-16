@@ -25,7 +25,7 @@ export default function LoadStopsScreen({
   const allDone = !activeStopId;
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[90] ntransit-shell flex flex-col">
       {/* App bar */}
       <div className="safe-top px-4 py-3 flex items-center justify-between">
         <motion.button
@@ -42,9 +42,11 @@ export default function LoadStopsScreen({
       </div>
 
       {/* Blue header */}
-      <div className="bg-blue-600 px-4 py-5">
-        <div className="text-white/80 text-xs mb-1">LOAD {String(loadIndex + 1).padStart(2, '0')}</div>
-        <div className="text-white text-4xl font-extrabold">Stops</div>
+      <div className="px-4 py-5 bg-gradient-to-r from-cyan-500/20 via-cyan-400/10 to-transparent border-b border-white/10">
+        <div className="text-white/70 text-xs tracking-[0.4em] uppercase mb-1">
+          Load {String(loadIndex + 1).padStart(2, '0')}
+        </div>
+        <div className="text-white text-3xl font-semibold">Stop Manifest</div>
       </div>
 
       {/* Content */}
@@ -111,7 +113,7 @@ export default function LoadStopsScreen({
           onClick={() => { playClick(); onDepartToDC(); }}
           disabled={!allDone || !!load.finishedAt}
           className={`w-full rounded-2xl py-4 text-base font-semibold ${
-            allDone && !load.finishedAt ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/30'
+            allDone && !load.finishedAt ? 'ntransit-cta text-black/80' : 'bg-white/5 text-white/30'
           }`}
         >
           Head Back To DC

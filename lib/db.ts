@@ -65,7 +65,9 @@ export interface Trip {
   trackingActive?: boolean;
   trackingMilesBuffer?: number;
   trackingNightMilesBuffer?: number;
-  trackingLastLocation?: GeoPointLite;
+  trackingLastLocation?: GeoPointLite | null;
+  trackingLoadId?: string | null;
+  trackingStopId?: string | null;
 }
 
 // Settings
