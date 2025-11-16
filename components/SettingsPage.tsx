@@ -7,6 +7,20 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 
+function minutesToTime(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.min(1439, totalMinutes ?? 0));
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mm = String(minutes % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function timeToMinutes(value: string): number {
+  const [hh, mm] = value.split(':').map((v) => parseInt(v, 10));
+  const hours = isNaN(hh) ? 0 : Math.max(0, Math.min(23, hh));
+  const minutes = isNaN(mm) ? 0 : Math.max(0, Math.min(59, mm));
+  return hours * 60 + minutes;
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -14,6 +28,10 @@ export default function SettingsPage() {
     cpm: 0,
     payPerLoad: 0,
     payPerStop: 0,
+    nightPayEnabled: false,
+    nightStartMinutes: 19 * 60,
+    nightEndMinutes: 3 * 60,
+    nightExtraCpm: 0.06,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,7 +46,16 @@ export default function SettingsPage() {
     if (!user) return;
     const saved = await getSettings(user.uid);
     if (saved) {
-      setSettings(saved);
+      // Merge defaults for newly added fields
+      setSettings({
+        cpm: saved.cpm ?? 0,
+        payPerLoad: saved.payPerLoad ?? 0,
+        payPerStop: saved.payPerStop ?? 0,
+        nightPayEnabled: saved.nightPayEnabled ?? false,
+        nightStartMinutes: saved.nightStartMinutes ?? (19 * 60),
+        nightEndMinutes: saved.nightEndMinutes ?? (3 * 60),
+        nightExtraCpm: saved.nightExtraCpm ?? 0.06,
+      });
     }
     setLoading(false);
   };
@@ -117,6 +144,74 @@ export default function SettingsPage() {
             </div>
 
             <div className="glass rounded-2xl p-4">
+              <label className="block text-sm font-medium text-white/90 mb-3">Pay Per Stop ($)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60">$</span>
+                <input
+                  type="number"
+                  value={settings.payPerStop || ''}
+                  onChange={(e) => setSettings({ ...settings, payPerStop: parseFloat(e.target.value) || 0 })}
+                  className="w-full pl-10 pr-4 py-4 glass rounded-xl border border-white/10 focus:border-purple-500 focus:outline-none text-white"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  style={{ fontSize: '17px' }}
+                />
+              </div>
+            </div>
+
+            <div className="glass rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-white/90">Enable Nightly Pay</label>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, nightPayEnabled: !settings.nightPayEnabled })}
+                  className={`w-12 h-7 rounded-full transition ${settings.nightPayEnabled ? 'bg-blue-500' : 'bg-white/20'}`}
+                >
+                  <span
+                    className={`block w-6 h-6 bg-white rounded-full transform transition ${settings.nightPayEnabled ? 'translate-x-6' : 'translate-x-1'} mt-0.5`}
+                  />
+                </button>
+              </div>
+
+              <div className={`grid grid-cols-2 gap-3 ${settings.nightPayEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+                <div>
+                  <label className="block text-xs text-white/60 mb-2">Night Start</label>
+                  <input
+                    type="time"
+                    value={minutesToTime(settings.nightStartMinutes ?? 1140)}
+                    onChange={(e) => setSettings({ ...settings, nightStartMinutes: timeToMinutes(e.target.value) })}
+                    className="w-full px-4 py-3 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-2">Night End</label>
+                  <input
+                    type="time"
+                    value={minutesToTime(settings.nightEndMinutes ?? 180)}
+                    onChange={(e) => setSettings({ ...settings, nightEndMinutes: timeToMinutes(e.target.value) })}
+                    className="w-full px-4 py-3 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                  />
+                </div>
+              </div>
+
+              <div className={`mt-3 ${settings.nightPayEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+                <label className="block text-xs text-white/60 mb-2">Night Extra CPM ($/mi)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60">$</span>
+                  <input
+                    type="number"
+                    value={settings.nightExtraCpm ?? 0}
+                    onChange={(e) => setSettings({ ...settings, nightExtraCpm: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-10 pr-4 py-4 glass rounded-xl border border-white/10 focus:border-blue-500 focus:outline-none text-white"
+                    placeholder="0.06"
+                    min="0"
+                    step="0.01"
+                    style={{ fontSize: '17px' }}
+                  />
+                </div>
+              </div>
+            </div>
               <label className="block text-sm font-medium text-white/90 mb-3">Pay Per Stop ($)</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60">$</span>

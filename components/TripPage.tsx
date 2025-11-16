@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getTrip, updateTrip, getSettings, Trip, Settings, Load, Stop } from '@/lib/db';
-import { calculateTripPay, formatCurrency, formatDateTime } from '@/lib/utils';
+import { calculateTripPay, formatCurrency, formatDateTime, isInNightWindow } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
@@ -46,7 +46,8 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
       
       if (tripData && settingsData) {
         const mileage = tripData.currentMileage - tripData.startMileage;
-        const recalculatedPay = calculateTripPay(mileage, tripData.loads, settingsData);
+        const nightMiles = tripData.nightMiles || 0;
+        const recalculatedPay = calculateTripPay(mileage, tripData.loads, settingsData, nightMiles);
         
         if (Math.abs(tripData.totalPay - recalculatedPay) > 0.01) {
           await updateTrip(tripId, { totalPay: recalculatedPay });
@@ -86,7 +87,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
       const updatedLoads = [...trip.loads, newLoad];
       const mileage = trip.currentMileage - trip.startMileage;
-      const totalPay = calculateTripPay(mileage, updatedLoads, settings);
+      const totalPay = calculateTripPay(mileage, updatedLoads, settings, trip.nightMiles || 0);
 
       await updateTrip(tripId, { loads: updatedLoads, totalPay });
       setTrip({ ...trip, loads: updatedLoads, totalPay });
@@ -113,10 +114,18 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
     setUpdating(true);
     try {
+      const previousMileage = trip.currentMileage;
+      const delta = Math.max(0, mileage - previousMileage);
+
+      // Categorize delta miles based on current time window
+      const now = new Date();
+      const nightIncrement = (settings.nightPayEnabled && delta > 0 && isInNightWindow(now, settings)) ? delta : 0;
+      const newNightMiles = (trip.nightMiles || 0) + nightIncrement;
+
       const tripMileage = mileage - trip.startMileage;
-      const totalPay = calculateTripPay(tripMileage, trip.loads, settings);
-      await updateTrip(tripId, { currentMileage: mileage, totalPay });
-      setTrip({ ...trip, currentMileage: mileage, totalPay });
+      const totalPay = calculateTripPay(tripMileage, trip.loads, settings, newNightMiles);
+      await updateTrip(tripId, { currentMileage: mileage, totalPay, nightMiles: newNightMiles });
+      setTrip({ ...trip, currentMileage: mileage, totalPay, nightMiles: newNightMiles });
       setNewMileage('');
       setShowUpdateMileage(false);
       hapticSuccess();
@@ -139,12 +148,20 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
 
     setUpdating(true);
     try {
+      const previousMileage = trip.currentMileage;
+      const delta = Math.max(0, endMileage - previousMileage);
+
+      const now = new Date();
+      const nightIncrement = (settings.nightPayEnabled && delta > 0 && isInNightWindow(now, settings)) ? delta : 0;
+      const newNightMiles = (trip.nightMiles || 0) + nightIncrement;
+
       const tripMileage = endMileage - trip.startMileage;
-      const totalPay = calculateTripPay(tripMileage, trip.loads, settings);
+      const totalPay = calculateTripPay(tripMileage, trip.loads, settings, newNightMiles);
       await updateTrip(tripId, {
         endMileage,
         currentMileage: endMileage,
         totalPay,
+        nightMiles: newNightMiles,
         isFinished: true,
         finishedAt: Timestamp.now(),
       });
@@ -177,7 +194,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
         load.id === loadId ? { ...load, stops } : load
       );
       const mileage = trip.currentMileage - trip.startMileage;
-      const totalPay = calculateTripPay(mileage, updatedLoads, settings);
+      const totalPay = calculateTripPay(mileage, updatedLoads, settings, trip.nightMiles || 0);
       await updateTrip(tripId, { loads: updatedLoads, totalPay });
       setTrip({ ...trip, loads: updatedLoads, totalPay });
       setEditStops('');
@@ -200,7 +217,7 @@ export default function TripPage({ tripId, onFinishTrip }: TripPageProps) {
     try {
       const updatedLoads = trip.loads.filter(load => load.id !== loadId);
       const mileage = trip.currentMileage - trip.startMileage;
-      const totalPay = calculateTripPay(mileage, updatedLoads, settings);
+      const totalPay = calculateTripPay(mileage, updatedLoads, settings, trip.nightMiles || 0);
       await updateTrip(tripId, { loads: updatedLoads, totalPay });
       setTrip({ ...trip, loads: updatedLoads, totalPay });
       hapticSuccess();

@@ -18,6 +18,11 @@ export interface Settings {
   cpm: number; // dollars per mile (e.g., 1.00 for $1.00 per mile)
   payPerLoad: number;
   payPerStop: number;
+  // Nightly pay configuration
+  nightPayEnabled?: boolean; // default false
+  nightStartMinutes?: number; // minutes since midnight (0-1439), e.g., 19:00 -> 1140
+  nightEndMinutes?: number; // minutes since midnight (0-1439), can be less than start to indicate overnight window
+  nightExtraCpm?: number; // dollars per mile extra during night (e.g., 0.06)
 }
 
 export interface Stop {
@@ -44,6 +49,8 @@ export interface Trip {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   finishedAt?: Timestamp;
+  // Mileage driven during configured nightly window
+  nightMiles?: number;
 }
 
 // Settings
@@ -89,6 +96,7 @@ export async function createTrip(userId: string, startMileage: number): Promise<
     userId,
     startMileage,
     currentMileage: startMileage,
+    nightMiles: 0,
     loads: [],
     totalPay: 0,
     isFinished: false,

@@ -4,14 +4,48 @@ import { startOfWeek, endOfWeek, isWithinInterval, format } from 'date-fns';
 export function calculateTripPay(
   mileage: number,
   loads: Load[],
-  settings: Settings
+  settings: Settings,
+  nightMiles: number = 0
 ): number {
-  const mileagePay = mileage * settings.cpm; // CPM is now in dollars
+  const effectiveNightExtra = settings.nightPayEnabled ? (settings.nightExtraCpm || 0) : 0;
+  const nightMilesCapped = Math.max(0, Math.min(nightMiles, mileage));
+  const dayMiles = Math.max(0, mileage - nightMilesCapped);
+
+  const mileagePay =
+    dayMiles * settings.cpm +
+    nightMilesCapped * (settings.cpm + effectiveNightExtra); // CPM is in dollars
   const loadsPay = loads.length * settings.payPerLoad;
   const totalStops = loads.reduce((sum, load) => sum + load.stops.length, 0);
   const stopsPay = totalStops * settings.payPerStop;
   
   return mileagePay + loadsPay + stopsPay;
+}
+
+export function minutesSinceMidnight(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+export function isInTimeWindow(nowMinutes: number, startMinutes: number, endMinutes: number): boolean {
+  const normStart = ((startMinutes % 1440) + 1440) % 1440;
+  const normEnd = ((endMinutes % 1440) + 1440) % 1440;
+  if (normStart === normEnd) {
+    // Full-day window if enabled
+    return true;
+  }
+  if (normStart < normEnd) {
+    // Same-day window
+    return nowMinutes >= normStart && nowMinutes < normEnd;
+  }
+  // Overnight window (e.g., 19:00 -> 03:00)
+  return nowMinutes >= normStart || nowMinutes < normEnd;
+}
+
+export function isInNightWindow(now: Date, settings: Settings): boolean {
+  if (!settings.nightPayEnabled) return false;
+  const start = settings.nightStartMinutes ?? (19 * 60);
+  const end = settings.nightEndMinutes ?? (3 * 60);
+  const nowMin = minutesSinceMidnight(now);
+  return isInTimeWindow(nowMin, start, end);
 }
 
 export function getWeekStartDate(date: Date = new Date()): Date {
