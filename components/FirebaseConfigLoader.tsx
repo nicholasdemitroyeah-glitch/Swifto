@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import Script from 'next/script';
 
 export default function FirebaseConfigLoader() {
+  const firebaseConfigSrc = useMemo(() => {
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+    if (!basePath) return '/firebase-config.js';
+    const sanitized = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+    return `${sanitized}/firebase-config.js`;
+  }, []);
+
   useEffect(() => {
     // This will run on the client side after the script loads
     const checkConfig = () => {
@@ -24,7 +31,7 @@ export default function FirebaseConfigLoader() {
 
   return (
     <Script
-      src="/firebase-config.js"
+      src={firebaseConfigSrc}
       strategy="beforeInteractive"
       onLoad={() => {
         if (typeof window !== 'undefined' && window.__FIREBASE_CONFIG__) {
